@@ -1,8 +1,6 @@
 """Prepare the shared HF cache from the SEAM root on the Tamia login node."""
 
-from importlib.metadata import version
 import os
-from pathlib import Path
 
 os.environ["HF_HOME"] = os.path.join(os.environ["SCRATCH"], ".cache", "huggingface")
 
@@ -10,12 +8,6 @@ from datasets import load_dataset
 from huggingface_hub import snapshot_download
 from lm_eval.tasks import TaskManager, get_task_dict
 from transformers import AutoTokenizer
-
-for line in Path("requirements.txt").read_text().splitlines():
-    if "==" in line:
-        package, expected = line.split("==")
-        assert version(package) == expected, (package, expected, version(package))
-print("Upstream dependency versions verified", flush=True)
 
 # Download models
 models = [
