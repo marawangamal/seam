@@ -1,29 +1,17 @@
-#!/bin/bash
-#SBATCH --job-name=seam-prepare
-#SBATCH --output=artifacts/tamia/logs/prepare-%j.out
-#SBATCH --partition=cpubase_bycore_b1
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
-#SBATCH --time=03:00:00
-set -euo pipefail
+"""Prepare the shared HF cache from the SEAM root on the Tamia login node."""
 
-# ============================================
-# CLUSTER SPECIFIC CONFIG
-# ============================================
-export HF_HOME="$SCRATCH/.cache/huggingface"
-unset HF_HUB_OFFLINE HF_DATASETS_OFFLINE TRANSFORMERS_OFFLINE HF_DATASETS_CACHE
-module load httpproxy/1.0
-
-# ============================================
-# APPLICATION SPECIFIC CONFIG
-# ============================================
-source .venv/bin/activate
-
-python - <<'PY'
 from importlib.metadata import version
+import os
 from pathlib import Path
+
+os.environ["HF_HOME"] = os.path.join(os.environ["SCRATCH"], ".cache", "huggingface")
+for name in [
+    "HF_HUB_OFFLINE",
+    "HF_DATASETS_OFFLINE",
+    "TRANSFORMERS_OFFLINE",
+    "HF_DATASETS_CACHE",
+]:
+    os.environ.pop(name, None)
 
 from datasets import load_dataset
 from huggingface_hub import snapshot_download
@@ -52,4 +40,3 @@ get_task_dict(
     task_manager=TaskManager(),
 )
 print("Training and evaluation datasets cached", flush=True)
-PY
