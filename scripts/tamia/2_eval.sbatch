@@ -15,7 +15,7 @@ export HF_HOME="$SCRATCH/.cache/huggingface"
 export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false WANDB_MODE=offline
 export WANDB_DIR="$PWD/artifacts/tamia"
-mkdir -p "$WANDB_DIR"
+mkdir -p "$WANDB_DIR" artifacts/tamia/logs
 source .venv/bin/activate
 
 # Run from the SEAM repository root; paths resolve from the working directory.
@@ -40,7 +40,7 @@ for gpu in 0 1 2 3; do
         --output_dir "$output" \
         --skip_gpt True --results_path "$output/results.json" \
         --save_strategy epoch --save_only_model True --save_total_limit 1 "$@" \
-        > "$output.log" 2>&1 &
+        > "artifacts/tamia/logs/$WANDB_RUN_NAME.log" 2>&1 &
     pids+=("$!")
 done
 
