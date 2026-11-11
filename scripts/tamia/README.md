@@ -4,8 +4,8 @@ Run from the SEAM repository root. These launchers call the authors' entry point
 directly; they do not wrap the trainer or change dataset formatting or losses.
 Prepare the environment from `requirements.txt`, pretrained weights, datasets,
 and `data/beavertails_with_refusals_train.json` before submitting. Compute nodes
-are offline. Shared caches use `$SCRATCH/.cache/huggingface` (datasets in `datasets/`)
-and `$SCRATCH/.cache/uv`. `SEAM_ENV` overrides the environment path in the launchers.
+are offline. Set `HF_HOME=$SCRATCH/.cache/huggingface`; Hugging Face uses its default
+subdirectories. `SEAM_ENV` overrides the environment path in the launchers.
 
 Keep large artifacts on project/scratch storage. Create the output/log directories
 before submission. Checkpoints use the native Hugging Face saving options:

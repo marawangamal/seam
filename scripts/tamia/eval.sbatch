@@ -11,10 +11,7 @@
 set -euo pipefail
 
 # Cluster environment: prepare weights, datasets, and the venv before submission.
-export XDG_CACHE_HOME="$SCRATCH/.cache"
-export HF_HOME="$XDG_CACHE_HOME/huggingface"
-export HF_DATASETS_CACHE="$HF_HOME/datasets"
-export UV_CACHE_DIR="$XDG_CACHE_HOME/uv"
+export HF_HOME="$SCRATCH/.cache/huggingface"
 export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false WANDB_MODE=offline
 source "${SEAM_ENV:-$SCRATCH/lilpipe/seam-official/venv}/bin/activate"
