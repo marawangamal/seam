@@ -24,5 +24,6 @@ output=${2:?missing output directory}
 shift 2
 test ! -e "$output"
 export CUDA_VISIBLE_DEVICES=0,1,2,3
+export PYTHONHASHSEED=0
 python -m src.train --config "$config" --output_dir "$output" \
   --save_total_limit 1 "$@"
