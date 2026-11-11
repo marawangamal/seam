@@ -14,7 +14,7 @@ set -euo pipefail
 export HF_HOME="$SCRATCH/.cache/huggingface"
 export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false WANDB_MODE=offline
-source "${SEAM_ENV:-$SCRATCH/lilpipe/seam-official/venv}/bin/activate"
+source .venv/bin/activate
 
 # Run from the SEAM repository root; paths resolve from the working directory.
 config=${1:?usage: train.sbatch CONFIG OUTPUT [AUTHOR_ARGS...]}
