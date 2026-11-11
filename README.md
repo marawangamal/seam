@@ -118,12 +118,9 @@ sbatch scripts/tamia/1_train.sbatch \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config
 
 # 2. Train & evaluate attacked models (after defense training finishes)
-for lr in 2e-5 5e-5 8e-5 1e-4 2e-4; do
-  sbatch scripts/tamia/2_eval.sbatch \
-    artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config/checkpoint-500 \
-    artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--relearn-fft-lr${lr}-ms250 \
-    --learning_rate "$lr" \
-    --pre_utility False \
-    --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
-done
+sbatch scripts/tamia/2_eval.sbatch \
+  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config/checkpoint-500 \
+  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config \
+  --pre_utility False \
+  --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
 ```

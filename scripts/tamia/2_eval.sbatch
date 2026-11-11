@@ -17,11 +17,25 @@ export TOKENIZERS_PARALLELISM=false WANDB_MODE=offline
 source .venv/bin/activate
 
 # Run from the SEAM repository root; paths resolve from the working directory.
-model=${1:?usage: 2_eval.sbatch MODEL OUTPUT [AUTHOR_ARGS...]}
-output=${2:?missing output directory}
+model=${1:?usage: 2_eval.sbatch MODEL OUTPUT_PREFIX [AUTHOR_ARGS...]}
+output_prefix=${2:?missing output prefix}
 shift 2
-test ! -e "$output"
-export CUDA_VISIBLE_DEVICES=0
-python -m src.eval --config config/eval.yaml --model_name "$model" \
-  --output_dir "$output" --skip_gpt True --results_path "$output/results.json" \
-  --save_strategy epoch --save_only_model True --save_total_limit 1 "$@"
+
+EVAL_SIZES=(1000)
+EVAL_LEARNING_RATES=(2e-5 5e-5 8e-5 1e-4 2e-4)
+for EVAL_SIZE in "${EVAL_SIZES[@]}"; do
+    for EVAL_LEARNING_RATE in "${EVAL_LEARNING_RATES[@]}"; do
+        output="$output_prefix--relearn-fft-lr$EVAL_LEARNING_RATE-ms250"
+        WANDB_RUN_NAME=$(basename "$output")
+        test ! -e "$output"
+        CUDA_VISIBLE_DEVICES=0 python -m src.eval \
+            --config config/eval.yaml \
+            --attack_size "$EVAL_SIZE" \
+            --learning_rate "$EVAL_LEARNING_RATE" \
+            --model_name "$model" \
+            --wandb_run_name "$WANDB_RUN_NAME" \
+            --output_dir "$output" \
+            --skip_gpt True --results_path "$output/results.json" \
+            --save_strategy epoch --save_only_model True --save_total_limit 1 "$@"
+    done
+done
