@@ -6,8 +6,8 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=0
 #SBATCH --time=03:00:00
-#SBATCH --job-name=seam-train
-#SBATCH --output=artifacts/tamia/logs/train-%j.out
+#SBATCH --job-name=seam-eval
+#SBATCH --output=artifacts/tamia/logs/eval-%j.out
 set -euo pipefail
 
 # Cluster environment: prepare weights, datasets, and the venv before submission.
@@ -17,10 +17,11 @@ export TOKENIZERS_PARALLELISM=false WANDB_MODE=offline
 source .venv/bin/activate
 
 # Run from the SEAM repository root; paths resolve from the working directory.
-config=${1:?usage: train.sbatch CONFIG OUTPUT [AUTHOR_ARGS...]}
+model=${1:?usage: 2_eval.sbatch MODEL OUTPUT [AUTHOR_ARGS...]}
 output=${2:?missing output directory}
 shift 2
 test ! -e "$output"
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-python -m src.train --config "$config" --output_dir "$output" \
-  --save_total_limit 1 "$@"
+export CUDA_VISIBLE_DEVICES=0
+python -m src.eval --config config/eval.yaml --model_name "$model" \
+  --output_dir "$output" --skip_gpt True --results_path "$output/results.json" \
+  --save_strategy epoch --save_only_model True --save_total_limit 1 "$@"
