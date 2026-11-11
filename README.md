@@ -121,6 +121,5 @@ sbatch scripts/tamia/1_train.sbatch \
 sbatch scripts/tamia/2_eval.sbatch \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config/checkpoint-500 \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config \
-  --pre_utility False \
   --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
 ```
