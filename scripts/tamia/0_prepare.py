@@ -17,6 +17,7 @@ for line in Path("requirements.txt").read_text().splitlines():
         assert version(package) == expected, (package, expected, version(package))
 print("Upstream dependency versions verified", flush=True)
 
+# Download models
 models = [
     "meta-llama/Llama-2-7b-chat-hf",
     "domenicrosati/deberta-v3-xsmall-beavertails-harmful-qa-classifier",
@@ -26,8 +27,11 @@ for model in models:
     AutoTokenizer.from_pretrained(model)
     print("Cached model and tokenizer:", model, flush=True)
 
-load_dataset("PKU-Alignment/BeaverTails", split="30k_test")
+# Download train data
 load_dataset("yahma/alpaca-cleaned", split="train")
+
+# Download eval data
+load_dataset("PKU-Alignment/BeaverTails", split="30k_test")
 get_task_dict(
     ["mmlu", "truthfulqa_mc1", "arc_easy", "hellaswag"],
     task_manager=TaskManager(),
