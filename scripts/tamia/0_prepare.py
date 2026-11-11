@@ -5,13 +5,6 @@ import os
 from pathlib import Path
 
 os.environ["HF_HOME"] = os.path.join(os.environ["SCRATCH"], ".cache", "huggingface")
-for name in [
-    "HF_HUB_OFFLINE",
-    "HF_DATASETS_OFFLINE",
-    "TRANSFORMERS_OFFLINE",
-    "HF_DATASETS_CACHE",
-]:
-    os.environ.pop(name, None)
 
 from datasets import load_dataset
 from huggingface_hub import snapshot_download
