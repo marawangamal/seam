@@ -14,7 +14,7 @@ set -euo pipefail
 export HF_HOME="$SCRATCH/.cache/huggingface"
 export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false WANDB_MODE=offline
-export WANDB_DIR="$PWD/artifacts"
+export WANDB_DIR="$PWD/artifacts/tamia"
 mkdir -p "$WANDB_DIR"
 source .venv/bin/activate
 
