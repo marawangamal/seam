@@ -104,4 +104,26 @@ booktitle={The Fourteenth International Conference on Learning Representations},
 year={2026},
 url={https://openreview.net/forum?id=ERNpUGr8M5}
 }
-``` 
+```
+
+## Reproducing figure 1
+
+```sh
+# 0. Download data and models on login node
+.venv/bin/python scripts/tamia/0_download_models_and_data.py
+
+# 1. Train defended model
+sbatch scripts/tamia/1_train.sbatch \
+  config/train-paper.yaml \
+  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config
+
+# 2. Train & evaluate attacked models (after defense training finishes)
+for lr in 2e-5 5e-5 8e-5 1e-4 2e-4; do
+  sbatch scripts/tamia/2_eval.sbatch \
+    artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config/checkpoint-500 \
+    artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--relearn-fft-lr${lr}-ms250 \
+    --learning_rate "$lr" \
+    --pre_utility False \
+    --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
+done
+```
