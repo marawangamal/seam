@@ -38,7 +38,7 @@ for gpu in 0 1 2 3; do
         --model_name "$model" \
         --wandb_run_name "$WANDB_RUN_NAME" \
         --output_dir "$output" \
-        --skip_gpt True --results_path "$output/results.json" \
+        --skip_gpt True --results_path "artifacts/tamia/evals/$WANDB_RUN_NAME/results.json" \
         --save_strategy epoch --save_only_model True --save_total_limit 1 "$@" \
         > "artifacts/tamia/logs/$WANDB_RUN_NAME.log" 2>&1 &
     pids+=("$!")
