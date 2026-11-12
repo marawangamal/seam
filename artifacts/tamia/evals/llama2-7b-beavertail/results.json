@@ -1,0 +1,34 @@
+{
+  "model_name": "meta-llama/Llama-2-7b-chat-hf",
+  "harmfulness": 0.04747796346433461,
+  "post_utility": {
+    "mmlu": {
+      "acc,none": 0.46503347101552484,
+      "acc_stderr,none": 0.004031590648779053,
+      "alias": "mmlu"
+    },
+    "truthfulqa_mc1": {
+      "alias": "truthfulqa_mc1",
+      "acc,none": 0.3023255813953488,
+      "acc_stderr,none": 0.01607750926613291
+    },
+    "arc_easy": {
+      "alias": "arc_easy",
+      "acc,none": 0.7281144781144782,
+      "acc_stderr,none": 0.009129795867310605,
+      "acc_norm,none": 0.6839225589225589,
+      "acc_norm_stderr,none": 0.009540440071928223
+    },
+    "hellaswag": {
+      "alias": "hellaswag",
+      "acc,none": 0.5793666600278828,
+      "acc_stderr,none": 0.004926518439372232,
+      "acc_norm,none": 0.7594104760007967,
+      "acc_norm_stderr,none": 0.004265678940698774
+    }
+  },
+  "sources": {
+    "harmfulness": "../tamper-resistance/artifacts/tamia/evals/llama2-7b-beavertail/harmfulness.json",
+    "capability": "../tamper-resistance/artifacts/tamia/evals/llama2-7b-beavertail/capabilities-4gpu/__scratch__m__mgamal__.cache__huggingface__hub__models--meta-llama--Llama-2-7b-chat-hf__snapshots__f5db02db724555f92da89c216ac04704f23d4590/results_2026-11-04T09-35-36.091617.json"
+  }
+}
