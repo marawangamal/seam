@@ -12,9 +12,12 @@ import seaborn as sns
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--input", default="artifacts/tamia/tokenwise-cosim/tokenwise-cosims.jsonl"
+        "--input",
+        default="artifacts/tamia/tokenwise-cosim-2x2-templates/tokenwise-cosims.jsonl",
     )
-    parser.add_argument("--outpath", default="artifacts/figures/tokenwise-cosims.pdf")
+    parser.add_argument(
+        "--outpath", default="artifacts/figures/tokenwise-cosims-2x2-templates.pdf"
+    )
     args = parser.parse_args()
 
     rows = []
@@ -26,8 +29,10 @@ if __name__ == "__main__":
                     {
                         "Token index": t,
                         "Cosine similarity": cosine,
-                        "BB": str(result["bb_index"] + 1),
-                        "HH": str(result["hh_index"] + 1),
+                        "HH template": result["template_hh"].removeprefix(
+                            "template_hh_"
+                        ),
+                        "Pair": f"BB {result['bb_index'] + 1}, HH {result['hh_index'] + 1}",
                     }
                 )
 
@@ -37,8 +42,8 @@ if __name__ == "__main__":
         data=df,
         x="Token index",
         y="Cosine similarity",
-        hue="BB",
-        style="HH",
+        hue="HH template",
+        style="Pair",
         markers=True,
         dashes=False,
         kind="line",
