@@ -23,7 +23,7 @@ if __name__ == "__main__":
     configs = [
         {
             "path": base,
-            "name": r"SEAM (def=\n, att=\n)",
+            "name": r"SEAM (def=\n, att=\n) [original]",
             "attack": True,
             "color": colors[0],
         },
