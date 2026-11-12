@@ -115,12 +115,13 @@ url={https://openreview.net/forum?id=ERNpUGr8M5}
 # 1. Train defended model
 sbatch scripts/tamia/1_train.sbatch \
   config/train-paper.yaml \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config
+  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp-att-nl \
+  --wandb_run_name llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp-att-nl
 
 # 2. Train & evaluate attacked models (after defense training finishes)
 sbatch scripts/tamia/2_eval.sbatch \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config/checkpoint-500 \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config \
+  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp-att-nl/checkpoint-500 \
+  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp-att-nl \
   --pre_utility False \
   --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
 ```
