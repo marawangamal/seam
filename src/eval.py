@@ -1,5 +1,7 @@
 import argparse
+import json
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -33,6 +35,8 @@ class EvalArguments:
         default= "seam",
         metadata={"help": "WandB project name"}
     )
+    skip_gpt: bool = field(default=False, metadata={"help": "Skip GPT harmfulness judging"})
+    results_path: Optional[str] = field(default=None, metadata={"help": "Write evaluation results to this JSON path"})
     lora_attack: bool = field(default=False, metadata={"help": "Whether to use LoRA"})
 
 
@@ -58,6 +62,8 @@ def main():
     wandb.config.update(asdict(training_args))
     wandb.config.update(asdict(eval_args))
 
+    results = {"model_name": eval_args.model_name}
+
     # load model and tokenizer
     wandb.log({"Model name": eval_args.model_name})
     print("Model name: ", eval_args.model_name)
@@ -75,6 +81,7 @@ def main():
     if eval_args.pre_utility:
         clean_utility_score = {}
         utility_score = eval_utility(model, tokenizer, tasks=eval_args.utility_tasks, batch_size=eval_args.utility_batch_size)
+        results["pre_utility"] = utility_score
         try:
             for t in eval_args.utility_tasks:
                 clean_utility_score[t] = utility_score[t]["acc,none"]
@@ -116,13 +123,17 @@ def main():
     harmful_score = eval_harmfulness(model, tokenizer, test_dataloader)    
     print("Harmful score: ", harmful_score)
     wandb.log({"Harmful score": harmful_score})
-    harmful_score_gpt = eval_harmfulness_gpt(model, test_dataloader, tokenizer)
-    print("Harmful score GPT: ", harmful_score_gpt)
-    wandb.log({"Harmful score GPT": harmful_score_gpt})
+    results["harmfulness"] = harmful_score
+    if not eval_args.skip_gpt:
+        harmful_score_gpt = eval_harmfulness_gpt(model, test_dataloader, tokenizer)
+        print("Harmful score GPT: ", harmful_score_gpt)
+        wandb.log({"Harmful score GPT": harmful_score_gpt})
+        results["harmfulness_gpt"] = harmful_score_gpt
 
     if eval_args.post_utility:
         clean_utility_score = {}
         utility_score = eval_utility(model, tokenizer, tasks=eval_args.utility_tasks, batch_size=eval_args.utility_batch_size)
+        results["post_utility"] = utility_score
         try:
             for t in eval_args.utility_tasks:
                 clean_utility_score[t] = utility_score[t]["acc,none"]
@@ -131,6 +142,11 @@ def main():
         except Exception as e:
             print("Post utility score: ", utility_score)
             wandb.log({"Post utility score": utility_score})
+
+    if eval_args.results_path:
+        path = Path(eval_args.results_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(results, indent=2) + "\n")
 
     wandb.finish()
 

@@ -168,3 +168,6 @@ output/
 *.jsonl
 trainer_output/
 logs/
+
+# Local checkpoints, metrics, and offline W&B logs.
+artifacts/
