@@ -100,12 +100,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(seam_args.model_name, torch_dtype=torch.bfloat16)
     # model.config.use_cache = False
 
-    harmful_dataset, harmless_dataset, test_dataset = construct_beavertails_dataset(
-        tokenizer,
-        attack=seam_args.attack_dataset,
-        defence_size=seam_args.defense_size,
-        harmful_response_separator=" ",
-    )
+    harmful_dataset, harmless_dataset, test_dataset = construct_beavertails_dataset(tokenizer, attack=seam_args.attack_dataset, defence_size=seam_args.defense_size)
     benign_dataset = construct_alpaca_dataset(tokenizer, retain_size=seam_args.defense_size)
 
     def collate_fn(batch):
