@@ -22,21 +22,18 @@ if __name__ == "__main__":
     colors = sns.color_palette("colorblind", 2)
     configs = [
         {
-            "path": base,
+            "path": base + "--relearn-fft-lr{lr}-ms250",
             "name": r"SEAM (def=\n, att=\n) [original]",
-            "attack": True,
             "color": colors[0],
         },
         {
-            "path": base + "--def-nl-att-sp",
+            "path": base + "--def-nl-att-sp--relearn-fft-lr{lr}-ms250",
             "name": r"SEAM (def=\n, att=sp)",
-            "attack": True,
             "color": colors[1],
         },
         {
-            "path": "llama2-7b-beavertail",
-            "name": "Base",
-            "attack": False,
+            "path": "llama2-7b-beavertail--data-overlapping--relearn-fft-author-codebase-lr{lr}-ms250",
+            "name": "Base (fine-tuned)",
             "color": "black",
         },
     ]
@@ -51,11 +48,7 @@ if __name__ == "__main__":
     rows = []
     for cfg in configs:
         for lr in learning_rates:
-            model = (
-                f"{cfg['path']}--relearn-fft-lr{lr}-ms250"
-                if cfg["attack"]
-                else cfg["path"]
-            )
+            model = cfg["path"].format(lr=lr)
             with open(osp.join(args.rootdir, model, "results.json")) as handle:
                 result = json.load(handle)
             capability = sum(
