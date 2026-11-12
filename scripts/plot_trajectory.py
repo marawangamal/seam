@@ -19,9 +19,26 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     base = "llama2-7b-beavertail--align-fft-seam--upstream-paper-config"
+    colors = sns.color_palette("colorblind", 2)
     configs = [
-        {"path": base, "name": r"SEAM (def=\n, att=\n)"},
-        {"path": base + "--def-nl-att-sp", "name": r"SEAM (def=\n, att=sp)"},
+        {
+            "path": base,
+            "name": r"SEAM (def=\n, att=\n)",
+            "attack": True,
+            "color": colors[0],
+        },
+        {
+            "path": base + "--def-nl-att-sp",
+            "name": r"SEAM (def=\n, att=sp)",
+            "attack": True,
+            "color": colors[1],
+        },
+        {
+            "path": "llama2-7b-beavertail",
+            "name": "Base",
+            "attack": False,
+            "color": "black",
+        },
     ]
     learning_rates = ["5e-5", "8e-5", "1e-4", "2e-4"]
     task_metrics = {
@@ -34,7 +51,11 @@ if __name__ == "__main__":
     rows = []
     for cfg in configs:
         for lr in learning_rates:
-            model = f"{cfg['path']}--relearn-fft-lr{lr}-ms250"
+            model = (
+                f"{cfg['path']}--relearn-fft-lr{lr}-ms250"
+                if cfg["attack"]
+                else cfg["path"]
+            )
             with open(osp.join(args.rootdir, model, "results.json")) as handle:
                 result = json.load(handle)
             capability = sum(
@@ -66,7 +87,7 @@ if __name__ == "__main__":
         col_order=["Harmfulness ↓", "Capability ↑"],
         kind="point",
         errorbar=None,
-        palette="colorblind",
+        palette={cfg["name"]: cfg["color"] for cfg in configs},
         height=3,
         aspect=1.4,
     )
