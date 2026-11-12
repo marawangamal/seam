@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Plot SEAM harmfulness and capability across attack learning rates."""
+
+import argparse
+import json
+import os
+import os.path as osp
+
+import pandas as pd
+import seaborn as sns
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--rootdir", default="artifacts/tamia/evals")
+    parser.add_argument(
+        "--outpath",
+        default="artifacts/figures/llama2-7b-beavertail--seam-attacker-format--lr-trajectory.pdf",
+    )
+    args = parser.parse_args()
+
+    base = "llama2-7b-beavertail--align-fft-seam--upstream-paper-config"
+    configs = [
+        {"path": base, "name": r"SEAM (def=\n, att=\n)"},
+        {"path": base + "--def-nl-att-sp", "name": r"SEAM (def=\n, att=sp)"},
+    ]
+    learning_rates = ["5e-5", "8e-5", "1e-4", "2e-4"]
+    task_metrics = {
+        "mmlu": "acc,none",
+        "truthfulqa_mc1": "acc,none",
+        "arc_easy": "acc_norm,none",
+        "hellaswag": "acc_norm,none",
+    }
+
+    rows = []
+    for cfg in configs:
+        for lr in learning_rates:
+            model = f"{cfg['path']}--relearn-fft-lr{lr}-ms250"
+            with open(osp.join(args.rootdir, model, "results.json")) as handle:
+                result = json.load(handle)
+            capability = sum(
+                result["post_utility"][task][metric]
+                for task, metric in task_metrics.items()
+            ) / len(task_metrics)
+            for evaluation, score in [
+                ("Harmfulness ↓", result["harmfulness"]),
+                ("Capability ↑", capability),
+            ]:
+                rows.append(
+                    {
+                        "Method": cfg["name"],
+                        "LR": lr,
+                        "Eval": evaluation,
+                        "Score (%)": 100 * score,
+                    }
+                )
+
+    df = pd.DataFrame(rows)
+    sns.set_theme(context="paper", style="ticks", font_scale=1.5)
+    grid = sns.catplot(
+        data=df,
+        x="LR",
+        y="Score (%)",
+        hue="Method",
+        col="Eval",
+        order=learning_rates,
+        col_order=["Harmfulness ↓", "Capability ↑"],
+        kind="point",
+        errorbar=None,
+        palette="colorblind",
+        height=3,
+        aspect=1.4,
+    )
+    grid.set(ylim=(0, 100))
+    grid.set_axis_labels("Attack learning rate", "Score (%)")
+    grid.set_titles("{col_name}")
+    os.makedirs(osp.dirname(args.outpath) or ".", exist_ok=True)
+    grid.figure.savefig(args.outpath, bbox_inches="tight")
