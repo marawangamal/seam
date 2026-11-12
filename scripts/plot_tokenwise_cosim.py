@@ -26,7 +26,8 @@ if __name__ == "__main__":
                     {
                         "Token index": t,
                         "Cosine similarity": cosine,
-                        "Pair": f"HH {result['hh_index'] + 1}, BB {result['bb_index'] + 1}",
+                        "BB": str(result["bb_index"] + 1),
+                        "HH": str(result["hh_index"] + 1),
                     }
                 )
 
@@ -36,7 +37,10 @@ if __name__ == "__main__":
         data=df,
         x="Token index",
         y="Cosine similarity",
-        hue="Pair",
+        hue="BB",
+        style="HH",
+        markers=True,
+        dashes=False,
         kind="line",
         estimator=None,
         height=3,
