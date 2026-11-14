@@ -121,6 +121,7 @@ sbatch scripts/tamia/1_train.sbatch \
 sbatch scripts/tamia/2_eval.sbatch \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config/checkpoint-500 \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-nl-att-sp \
+  --harmful_response_separator " " \
   --pre_utility False \
   --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
 ```
@@ -139,6 +140,7 @@ train_job=$(sbatch --parsable scripts/tamia/1_train.sbatch \
 sbatch --dependency=afterok:"$train_job" scripts/tamia/2_eval.sbatch \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp/checkpoint-500 \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp-att-sp \
+  --harmful_response_separator " " \
   --pre_utility False \
   --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
 
