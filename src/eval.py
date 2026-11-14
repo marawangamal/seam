@@ -25,7 +25,7 @@ class EvalArguments:
     attack_dataset: bool = field(default=True, metadata={"help": "Whether to load attack dataset"})
     attack_size: int = field(default=1000, metadata={"help": "Number of examples for attack evaluation"})
     harmful_response_separator: str = field(
-        default=" ",
+        default="\n",
         metadata={"help": "Separator between Answer: and harmful responses"},
     )
     utility_tasks: List[str] = field(default_factory=lambda: ["mmlu"], 
