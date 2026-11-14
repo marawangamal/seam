@@ -75,8 +75,10 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(eval_args.model_name, torch_dtype=torch.bfloat16)
     model.to("cuda:0")
     harmful_dataset, harmless_dataset, test_dataset = construct_beavertails_dataset(
-            tokenizer, attack_size=eval_args.attack_size
-                )
+        tokenizer,
+        attack_size=eval_args.attack_size,
+        harmful_response_separator=" ",
+    )
 
     if eval_args.pre_utility:
         clean_utility_score = {}
