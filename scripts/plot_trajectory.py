@@ -12,6 +12,7 @@ import seaborn as sns
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rootdir", default="artifacts/tamia/evals")
+    parser.add_argument("--include-space-defense", action="store_true")
     parser.add_argument(
         "--outpath",
         default="artifacts/figures/llama2-7b-beavertail--seam-attacker-format--lr-trajectory.pdf",
@@ -19,7 +20,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     base = "llama2-7b-beavertail--align-fft-seam--upstream-paper-config"
-    colors = sns.color_palette("colorblind", 2)
+    colors = sns.color_palette("colorblind", 3)
     configs = [
         {
             "path": base + "--relearn-fft-lr{lr}-ms250",
@@ -37,6 +38,15 @@ if __name__ == "__main__":
             "color": "black",
         },
     ]
+    if args.include_space_defense:
+        configs.insert(
+            2,
+            {
+                "path": base + "--def-sp-att-sp--relearn-fft-lr{lr}-ms250",
+                "name": r"SEAM (def=sp, att=sp)",
+                "color": colors[2],
+            },
+        )
     learning_rates = ["5e-5", "8e-5", "1e-4", "2e-4"]
     task_metrics = {
         "mmlu": "acc,none",
