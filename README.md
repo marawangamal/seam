@@ -108,6 +108,9 @@ url={https://openreview.net/forum?id=ERNpUGr8M5}
 
 ## Reproducing figure 1
 
+The launcher sweeps `defence_sd_coefficients`, one Slurm array task per value,
+with four attack LRs in parallel. Sweep artifact names include `--beta<VALUE>`.
+
 ```sh
 # 0. Download data and models on login node
 .venv/bin/python scripts/tamia/0_download_models_and_data.py
