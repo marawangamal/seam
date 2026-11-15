@@ -109,9 +109,11 @@ url={https://openreview.net/forum?id=ERNpUGr8M5}
 ## Reproducing figure 1
 
 The launcher sweeps `defence_sd_coefficients`, one Slurm array task per value,
-with four attack LRs in parallel. Sweep artifact names include `--beta<VALUE>`.
+with four attack LRs in parallel. Sweep artifact names include `--coeff-sd<VALUE>`.
 Completed array tasks are skipped when all four evaluation JSONs exist; otherwise,
 that task's defence and attack outputs are deleted and regenerated.
+Each attacked model is deleted after its evaluation succeeds; the defended model
+is deleted after all four succeed. Evaluation JSONs and logs are kept.
 
 ```sh
 # 0. Download data and models on login node
