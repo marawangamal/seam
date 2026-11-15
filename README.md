@@ -112,38 +112,24 @@ url={https://openreview.net/forum?id=ERNpUGr8M5}
 # 0. Download data and models on login node
 .venv/bin/python scripts/tamia/0_download_models_and_data.py
 
-# 1. Train defended model
-sbatch scripts/tamia/1_train.sbatch \
+# 1. Train defended model, then train and evaluate four parallel attacks
+sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config
-
-# 2. Train & evaluate attacked models (after defense training finishes)
-sbatch scripts/tamia/2_eval.sbatch \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config/checkpoint-500 \
+  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-nl-att-sp \
-  --harmful_response_separator " " \
-  --pre_utility False \
-  --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
+  $'\n' " "
 ```
 
 ### Space-formatted defense and attack
 
 ```sh
-# 1. Train a new defended model with a space after Answer:
-train_job=$(sbatch --parsable scripts/tamia/1_train.sbatch \
+# 1. Train and evaluate with a space after Answer: for both stages
+sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp \
-  --harmful_response_separator " " \
-  --wandb_run_name llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp)
-
-# 2. Train and evaluate spaced attacks after defense training succeeds
-sbatch --dependency=afterok:"$train_job" scripts/tamia/2_eval.sbatch \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp/checkpoint-500 \
   artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp-att-sp \
-  --harmful_response_separator " " \
-  --pre_utility False \
-  --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
+  " " " "
 
-# 3. Include the new results in the trajectory plot
+# 2. Plot the results
 .venv/bin/python scripts/plot_trajectory.py
 ```
