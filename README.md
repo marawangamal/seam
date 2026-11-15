@@ -145,5 +145,5 @@ sbatch --dependency=afterok:"$train_job" scripts/tamia/2_eval.sbatch \
   --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
 
 # 3. Include the new results in the trajectory plot
-.venv/bin/python scripts/plot_trajectory.py --include-space-defense
+.venv/bin/python scripts/plot_trajectory.py
 ```
