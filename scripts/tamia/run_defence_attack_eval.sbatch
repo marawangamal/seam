@@ -30,61 +30,83 @@ export WANDB_DIR="$PWD/artifacts/tamia"
 mkdir -p "$WANDB_DIR" artifacts/tamia/logs
 
 # Inputs
-config=${1:?usage: run_defence_attack_eval.sbatch CONFIG DEFENCE_OUTPUT ATTACK_OUTPUT_PREFIX [DEFENCE_SEPARATOR [ATTACK_SEPARATOR]]}
+config=${1:?usage: run_defence_attack_eval.sbatch CONFIG [DEFENCE_SEPARATOR [ATTACK_SEPARATOR]]}
 defence_separator=${2:-$'\n'}
 attack_separator=${3:-$'\n'}
 defence_sd_coefficients=(0.1 1.0 5.0)
 attack_learning_rates=(5e-5 8e-5 1e-4 2e-4)
 defence_sd_coefficient=${defence_sd_coefficients[${SLURM_ARRAY_TASK_ID:?submit with sbatch}]}
 
-# "\n" -> nl
-# " " -> sp
-defence_separator_abbrv=
-attack_separator_abbrv=
+case "$defence_separator" in
+    $'\n') defence_separator_abbrv=nl ;;
+    ' ') defence_separator_abbrv=sp ;;
+    *) echo "Defence separator must be a newline or a space" >&2; exit 1 ;;
+esac
+case "$attack_separator" in
+    $'\n') attack_separator_abbrv=nl ;;
+    ' ') attack_separator_abbrv=sp ;;
+    *) echo "Attack separator must be a newline or a space" >&2; exit 1 ;;
+esac
 
 defence_model_name="llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-$defence_separator_abbrv--beta$defence_sd_coefficient"
+ckpt_dir="artifacts/tamia/models/$defence_model_name"
+results_dir="artifacts/tamia/evals/$defence_model_name"
 
-# Handle resumption. Skip if all attacks for a given defence exist.
-test ! -e "artifacts/tamia/models/$defence_model_name"
-for lr in "${attack_learning_rates[@]}"; do
-    attack_model_name="$defence_model_name-att-$attack_separator_abbrv--relearn-fft-lr$lr-ms250"
-    test ! -e "artifacts/tamia/models/$attack_model_name"
-    test ! -e "artifacts/tamia/evals/$attack_model_name"
+# ================================================================================
+# Resumption handling. Skip iff every attack config for this defence exists
+skip_defence=true
+for attack_lr in "${attack_learning_rates[@]}"; do
+    attack_results_dir="${results_dir}-att-$attack_separator_abbrv--relearn-fft-lr$attack_lr-ms250"
+    if [[ -z "$(find "$attack_results_dir" -type f \
+        -name 'results.json' -print -quit 2>/dev/null)" ]]; then
+        skip_defence=false
+    fi
 done
 
-# Defence. Uses all four GPUs. 
+if "$skip_defence"; then
+    echo "Skipping completed defence: $defence_model_name"
+    exit 0
+fi
+
+# Restart this defence and all its attacks from scratch.
+rm -rf -- \
+    "$ckpt_dir" "$results_dir" \
+    "${ckpt_dir}-att-${attack_separator_abbrv}"--relearn-* \
+    "${results_dir}-att-${attack_separator_abbrv}"--relearn-*
+# ================================================================================
+
+# Defence.
 CUDA_VISIBLE_DEVICES=0,1,2,3 PYTHONHASHSEED=0 python -m src.train \
     --config "$config" \
-    --output_dir "artifacts/tamia/models/$defence_model_name" \
+    --output_dir "$ckpt_dir" \
     --wandb_run_name "$defence_model_name" \
     --harmful_response_separator "$defence_separator" \
     --beta "$defence_sd_coefficient" \
     --save_total_limit 1
 
-defence_model_path="artifacts/tamia/models/$defence_model_name/checkpoint-500"
-test -n "$defence_model_path"
-test -f "$defence_model_path/trainer_state.json"
-
-# Attack. Each GPU trains one attack and then evaluates harmfulness and capabilities.
+# Attack and evaluation.
+defence_model_path="$ckpt_dir/checkpoint-500"
 pids=()
 for gpu in 0 1 2 3; do
-    lr=${attack_learning_rates[gpu]}
-    attack_model_name="$defence_model_name-att-$attack_separator_abbrv--relearn-fft-lr$lr-ms250"
+    attack_lr=${attack_learning_rates[gpu]}
+    attack_name="att-$attack_separator_abbrv--relearn-fft-lr$attack_lr-ms250"
+    attack_dir="${ckpt_dir}-$attack_name"
+    attack_results_dir="${results_dir}-$attack_name"
     CUDA_VISIBLE_DEVICES=$gpu python -m src.eval \
         --config config/eval.yaml \
-        --learning_rate "$lr" \
+        --learning_rate "$attack_lr" \
         --model_name "$defence_model_path" \
-        --wandb_run_name "$attack_model_name" \
+        --wandb_run_name "$defence_model_name-$attack_name" \
         --harmful_response_separator "$attack_separator" \
-        --output_dir "artifacts/tamia/models/$attack_model_name" \
+        --output_dir "$attack_dir" \
         --pre_utility False \
         --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag \
         --skip_gpt True \
-        --results_path "artifacts/tamia/evals/$attack_model_name/results.json" \
+        --results_path "$attack_results_dir/results.json" \
         --save_strategy epoch \
         --save_only_model True \
         --save_total_limit 1 \
-        > "artifacts/tamia/logs/$attack_model_name.log" 2>&1 &
+        > "artifacts/tamia/logs/$defence_model_name-$attack_name.log" 2>&1 &
     pids+=("$!")
 done
 

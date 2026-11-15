@@ -110,6 +110,8 @@ url={https://openreview.net/forum?id=ERNpUGr8M5}
 
 The launcher sweeps `defence_sd_coefficients`, one Slurm array task per value,
 with four attack LRs in parallel. Sweep artifact names include `--beta<VALUE>`.
+Completed array tasks are skipped when all four evaluation JSONs exist; otherwise,
+that task's defence and attack outputs are deleted and regenerated.
 
 ```sh
 # 0. Download data and models on login node
@@ -118,8 +120,6 @@ with four attack LRs in parallel. Sweep artifact names include `--beta<VALUE>`.
 # 1. Train defended model, then train and evaluate four parallel attacks
 sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-nl-att-sp \
   $'\n' " "
 ```
 
@@ -129,8 +129,6 @@ sbatch scripts/tamia/run_defence_attack_eval.sbatch \
 # 1. Train and evaluate with a space after Answer: for both stages
 sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp-att-sp \
   " " " "
 
 # 2. Plot the results
