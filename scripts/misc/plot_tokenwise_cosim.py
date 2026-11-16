@@ -16,7 +16,7 @@ if __name__ == "__main__":
         default="artifacts/tamia/tokenwise-cosim-2x2-templates/tokenwise-cosims.jsonl",
     )
     parser.add_argument(
-        "--outpath", default="artifacts/figures/tokenwise-cosims-2x2-templates.pdf"
+        "--outpath", default="artifacts/figures/tokenwise-cosims.pdf"
     )
     args = parser.parse_args()
 

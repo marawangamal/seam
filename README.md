@@ -134,5 +134,28 @@ sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   " " " "
 
 # 2. Plot the results
-.venv/bin/python scripts/plot_trajectory.py
+.venv/bin/python scripts/misc/plot_trajectory.py
 ```
+
+### Attack gradient cosine similarity
+
+The diagnostic rerun keeps the same `sp/sp` formats, SD coefficients, and attack LRs.
+It records the defense-style masked harmful/Alpaca gradient cosine on four fixed
+examples from each dataset at steps 0–250, along with gradient norms and probe losses.
+Probes use evaluation mode and preserve training gradients, optimizer updates, and RNG.
+These are diagnostic gradients; the attack still trains on its original full-sequence loss.
+The first JSONL row records the probe indices, dataset fingerprints, and loss definitions.
+
+```sh
+sbatch scripts/tamia/run_defence_attack_eval_cosim.sbatch \
+  config/train-paper.yaml " " " "
+
+.venv/bin/python scripts/misc/plot_trajectory.py --attack-cosim
+.venv/bin/python scripts/misc/plot_trajectory.py --sd-coefficients --attack-cosim
+```
+
+Run names include `--attack-cosim` before the attack suffix. Each attack saves
+`results.json` and `gradient_cosim.jsonl` under its `artifacts/tamia/evals/` directory.
+W&B records `attack/cosine_similarity`, both gradient norms, and probe losses against
+`attack/step`; offline runs can be synced after the job. The original sweep outputs
+are kept separate. Model checkpoints are deleted after successful evaluation.
