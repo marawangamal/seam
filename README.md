@@ -108,12 +108,13 @@ url={https://openreview.net/forum?id=ERNpUGr8M5}
 
 ## Reproducing figure 1
 
-The launcher sweeps `defence_sd_coefficients`, one Slurm array task per value,
-with four attack LRs in parallel. Sweep artifact names include `--coeff-sd<VALUE>`.
-Completed array tasks are skipped when all four evaluation JSONs exist; otherwise,
-that task's defence and attack outputs are deleted and regenerated.
+The launcher sweeps `defence_sd_coefficients`, one Slurm array task per coefficient.
+Each task trains one defence, then loops over `attack_sizes=(10 100 200 500)` with
+four attack LRs in parallel per size. Attack names end in `--relearn-fft-as<SAMPLES>-lr<LR>`.
+Completed array tasks are skipped when all size/LR evaluation JSONs exist;
+otherwise, that task's defence and configured attack outputs are regenerated.
 Each attacked model is deleted after its evaluation succeeds; the defended model
-is deleted after all four succeed. Evaluation JSONs and logs are kept.
+is deleted after all sizes and LRs succeed. Evaluation JSONs and logs are kept.
 
 ```sh
 # 0. Download data and models on login node
