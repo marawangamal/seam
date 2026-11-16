@@ -58,9 +58,8 @@ class GradientCosimCallback(TrainerCallback):
             labels = labels.masked_fill(labels == 0, -100)
         loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), labels.reshape(-1))
         gradients = torch.autograd.grad(loss, parameters, allow_unused=True)
-        # Keep full-model gradient copies off the attack GPU.
         return loss.item(), [
-            grad.detach().cpu() if grad is not None else None for grad in gradients
+            grad.detach() if grad is not None else None for grad in gradients
         ]
 
     def _record(self, args, state, model):
@@ -80,22 +79,29 @@ class GradientCosimCallback(TrainerCallback):
                     harmful_loss, harmful_grad = self._gradients(
                         model, parameters, self.harmful, device, self.mask
                     )
+                    harmful_grad = [
+                        grad.cpu() if grad is not None else None
+                        for grad in harmful_grad
+                    ]
                     benign_loss, benign_grad = self._gradients(
                         model, parameters, self.benign, device
                     )
         finally:
             model.train(training)
 
-        dot = harmful_squared = benign_squared = 0.0
+        # Reduce on the GPU, transferring the offloaded gradient one tensor at a time.
+        # This avoids both CPU full-model reductions and two full GPU gradient copies.
+        products = torch.zeros(3, device=device, dtype=torch.float32)
         for harmful, benign in zip(harmful_grad, benign_grad):
             if harmful is not None:
-                harmful = harmful.float()
-                harmful_squared += harmful.square().sum(dtype=torch.float64).item()
+                harmful = harmful.to(device).float()
+                products[1] += harmful.square().sum()
             if benign is not None:
                 benign = benign.float()
-                benign_squared += benign.square().sum(dtype=torch.float64).item()
+                products[2] += benign.square().sum()
             if harmful is not None and benign is not None:
-                dot += (harmful * benign).sum(dtype=torch.float64).item()
+                products[0] += (harmful * benign).sum()
+        dot, harmful_squared, benign_squared = products.cpu().tolist()
         harmful_norm = math.sqrt(harmful_squared)
         benign_norm = math.sqrt(benign_squared)
         cosine = dot / (harmful_norm * benign_norm + 1e-8)
