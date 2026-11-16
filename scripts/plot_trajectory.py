@@ -12,14 +12,16 @@ import seaborn as sns
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rootdir", default="artifacts/tamia/evals")
-    parser.add_argument(
-        "--outpath",
-        default="artifacts/figures/llama2-7b-beavertail--seam-attacker-format--lr-trajectory.pdf",
-    )
+    parser.add_argument("--sd-coefficients", action="store_true")
+    parser.add_argument("--outpath")
     args = parser.parse_args()
 
+    comparison = "sd-coeff" if args.sd_coefficients else "attacker-format"
+    outpath = args.outpath or (
+        f"artifacts/figures/llama2-7b-beavertail--seam-{comparison}--lr-trajectory.pdf"
+    )
     base = "llama2-7b-beavertail--align-fft-seam--upstream-paper-config"
-    colors = sns.color_palette("colorblind", 2)
+    colors = sns.color_palette("colorblind", 4)
     configs = [
         {
             "path": base + "--relearn-fft-lr{lr}-ms250",
@@ -32,11 +34,35 @@ if __name__ == "__main__":
             "color": colors[1],
         },
         {
+            "path": base + "--def-sp-att-sp--relearn-fft-lr{lr}-ms250",
+            "name": r"SEAM (def=sp, att=sp)",
+            "color": colors[2],
+        },
+    ]
+    if args.sd_coefficients:
+        configs = [
+            {
+                "path": base + "--def-sp-att-sp--relearn-fft-lr{lr}-ms250",
+                "name": r"SEAM (def=sp, att=sp), $\beta=0.01$",
+                "color": colors[0],
+            }
+        ]
+        for coefficient, color in zip(["0.1", "1.0", "5.0"], colors[1:]):
+            configs.append(
+                {
+                    "path": base
+                    + f"--def-sp--coeff-sd{coefficient}-att-sp--relearn-fft-lr{{lr}}-ms250",
+                    "name": rf"SEAM (def=sp, att=sp), $\beta={coefficient}$",
+                    "color": color,
+                }
+            )
+    configs.append(
+        {
             "path": "llama2-7b-beavertail--data-overlapping--relearn-fft-author-codebase-lr{lr}-ms250",
             "name": "Base (fine-tuned)",
             "color": "black",
-        },
-    ]
+        }
+    )
     learning_rates = ["5e-5", "8e-5", "1e-4", "2e-4"]
     task_metrics = {
         "mmlu": "acc,none",
@@ -87,5 +113,5 @@ if __name__ == "__main__":
     grid.set(ylim=(0, 100))
     grid.set_axis_labels("Attack learning rate", "Score (%)")
     grid.set_titles("{col_name}")
-    os.makedirs(osp.dirname(args.outpath) or ".", exist_ok=True)
-    grid.figure.savefig(args.outpath, bbox_inches="tight")
+    os.makedirs(osp.dirname(outpath) or ".", exist_ok=True)
+    grid.figure.savefig(outpath, bbox_inches="tight")

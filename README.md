@@ -108,19 +108,31 @@ url={https://openreview.net/forum?id=ERNpUGr8M5}
 
 ## Reproducing figure 1
 
+The launcher sweeps `defence_sd_coefficients`, one Slurm array task per value,
+with four attack LRs in parallel. Sweep artifact names include `--coeff-sd<VALUE>`.
+Completed array tasks are skipped when all four evaluation JSONs exist; otherwise,
+that task's defence and attack outputs are deleted and regenerated.
+Each attacked model is deleted after its evaluation succeeds; the defended model
+is deleted after all four succeed. Evaluation JSONs and logs are kept.
+
 ```sh
 # 0. Download data and models on login node
 .venv/bin/python scripts/tamia/0_download_models_and_data.py
 
-# 1. Train defended model
-sbatch scripts/tamia/1_train.sbatch \
+# 1. Train defended model, then train and evaluate four parallel attacks
+sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config
+  $'\n' " "
+```
 
-# 2. Train & evaluate attacked models (after defense training finishes)
-sbatch scripts/tamia/2_eval.sbatch \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config/checkpoint-500 \
-  artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-nl-att-sp \
-  --pre_utility False \
-  --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag
+### Space-formatted defense and attack
+
+```sh
+# 1. Train and evaluate with a space after Answer: for both stages
+sbatch scripts/tamia/run_defence_attack_eval.sbatch \
+  config/train-paper.yaml \
+  " " " "
+
+# 2. Plot the results
+.venv/bin/python scripts/plot_trajectory.py
 ```
