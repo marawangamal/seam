@@ -9,7 +9,7 @@ import wandb
 from peft import LoraConfig, get_peft_model, TaskType
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 
-from src.data_processing._datasets import construct_beavertails_dataset
+from src.data_processing._datasets import construct_alpaca_dataset, construct_beavertails_dataset
 from src.utils.config import load_yaml_config, MyParser
 from src.utils.metrics import eval_harmfulness, eval_harmfulness_gpt, eval_utility
 
@@ -42,6 +42,8 @@ class EvalArguments:
     skip_gpt: bool = field(default=False, metadata={"help": "Skip GPT harmfulness judging"})
     results_path: Optional[str] = field(default=None, metadata={"help": "Write evaluation results to this JSON path"})
     lora_attack: bool = field(default=False, metadata={"help": "Whether to use LoRA"})
+    gradient_cosim_steps: int = field(default=0, metadata={"help": "Attack steps between gradient probes; 0 disables recording"})
+    gradient_cosim_samples: int = field(default=4, metadata={"help": "Fixed harmful and Alpaca examples per gradient probe"})
 
 
 def main():
@@ -84,6 +86,28 @@ def main():
         harmful_response_separator=eval_args.harmful_response_separator,
     )
 
+    callbacks = []
+    if eval_args.gradient_cosim_steps:
+        from src.core.gradient_cosim import GradientCosimCallback
+
+        if not eval_args.attack or not eval_args.results_path:
+            raise ValueError("Gradient probes require an attack and a local results_path")
+        benign_dataset = construct_alpaca_dataset(
+            tokenizer, retain_size=eval_args.gradient_cosim_samples
+        )
+        callback = GradientCosimCallback(
+            harmful_dataset, harmless_dataset, benign_dataset, tokenizer.pad_token_id,
+            Path(eval_args.results_path).with_name("gradient_cosim.jsonl"),
+            interval=eval_args.gradient_cosim_steps,
+            samples=eval_args.gradient_cosim_samples,
+        )
+        callbacks.append(callback)
+        results["gradient_cosim"] = {
+            "path": "gradient_cosim.jsonl",
+            "interval": callback.interval,
+            "probe": callback.probe,
+        }
+
     if eval_args.pre_utility:
         clean_utility_score = {}
         utility_score = eval_utility(model, tokenizer, tasks=eval_args.utility_tasks, batch_size=eval_args.utility_batch_size)
@@ -110,6 +134,7 @@ def main():
             args=training_args,
             train_dataset=harmful_dataset,
             tokenizer=tokenizer,
+            callbacks=callbacks,
             )
             trainer.train()
             model = model.merge_and_unload()
@@ -119,8 +144,12 @@ def main():
             args=training_args,
             train_dataset=harmful_dataset,
             tokenizer=tokenizer,
+            callbacks=callbacks,
             )
             trainer.train()
+
+    if callbacks:
+        results["gradient_cosim"]["last_step"] = callbacks[0].last_step
 
     # evaluate harmfulness and utility
     test_dataloader = torch.utils.data.DataLoader(
