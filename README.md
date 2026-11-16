@@ -134,7 +134,7 @@ sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   " " " "
 
 # 2. Plot the results
-.venv/bin/python scripts/plot_trajectory.py
+.venv/bin/python scripts/misc/plot_trajectory.py
 ```
 
 ### Attack gradient cosine similarity
@@ -150,7 +150,8 @@ The first JSONL row records the probe indices, dataset fingerprints, and loss de
 sbatch scripts/tamia/run_defence_attack_eval_cosim.sbatch \
   config/train-paper.yaml " " " "
 
-.venv/bin/python scripts/plot_trajectory.py --attack-cosim
+.venv/bin/python scripts/misc/plot_trajectory.py --attack-cosim
+.venv/bin/python scripts/misc/plot_trajectory.py --sd-coefficients --attack-cosim
 ```
 
 Run names include `--attack-cosim` before the attack suffix. Each attack saves

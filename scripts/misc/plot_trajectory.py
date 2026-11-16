@@ -12,15 +12,15 @@ import seaborn as sns
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rootdir", default="artifacts/tamia/evals")
-    comparison_args = parser.add_mutually_exclusive_group()
-    comparison_args.add_argument("--sd-coefficients", action="store_true")
-    comparison_args.add_argument("--attack-cosim", action="store_true")
+    parser.add_argument("--sd-coefficients", action="store_true")
+    parser.add_argument("--attack-cosim", action="store_true")
     parser.add_argument("--outpath")
     args = parser.parse_args()
 
-    if args.attack_cosim:
+    if args.attack_cosim and not args.sd_coefficients:
         outpath = args.outpath or (
-            "artifacts/figures/llama2-7b-beavertail--seam-attack-cosim--trajectory.pdf"
+            "artifacts/figures/llama2-7b-beavertail--align-fft-seam"
+            "--attack-fft-cosim--trajectory.pdf"
         )
         base = "llama2-7b-beavertail--align-fft-seam--upstream-paper-config"
         coefficients = ["0.1", "1.0", "5.0"]
@@ -70,9 +70,13 @@ if __name__ == "__main__":
         grid.set_axis_labels("Attack optimizer step", "Gradient cosine similarity")
         grid.set_titles(r"$\beta={col_name}$")
     else:
-        comparison = "sd-coeff" if args.sd_coefficients else "attacker-format"
+        comparison = "attack-fft"
+        if args.attack_cosim:
+            comparison += "-cosim"
+        sweep = "-beta-sweep" if args.sd_coefficients else ""
         outpath = args.outpath or (
-            f"artifacts/figures/llama2-7b-beavertail--seam-{comparison}--lr-trajectory.pdf"
+            "artifacts/figures/llama2-7b-beavertail--align-fft-seam"
+            f"--{comparison}--lr-trajectory{sweep}.pdf"
         )
         base = "llama2-7b-beavertail--align-fft-seam--upstream-paper-config"
         colors = sns.color_palette("colorblind", 4)
@@ -101,11 +105,15 @@ if __name__ == "__main__":
                     "color": colors[0],
                 }
             ]
+            if args.attack_cosim:
+                configs = []
+            suffix = "--attack-cosim" if args.attack_cosim else ""
             for coefficient, color in zip(["0.1", "1.0", "5.0"], colors[1:]):
                 configs.append(
                     {
                         "path": base
-                        + f"--def-sp--coeff-sd{coefficient}-att-sp--relearn-fft-lr{{lr}}-ms250",
+                        + f"--def-sp--coeff-sd{coefficient}{suffix}"
+                        + "-att-sp--relearn-fft-lr{lr}-ms250",
                         "name": rf"SEAM (def=sp, att=sp), $\beta={coefficient}$",
                         "color": color,
                     }
