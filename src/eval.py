@@ -82,6 +82,7 @@ def main():
     model.to("cuda:0")
     harmful_dataset, harmless_dataset, test_dataset = construct_beavertails_dataset(
         tokenizer,
+        attack=eval_args.attack_dataset,
         attack_size=eval_args.attack_size,
         harmful_response_separator=eval_args.harmful_response_separator,
     )
