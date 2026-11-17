@@ -135,6 +135,15 @@ if __name__ == "__main__":
                 }
                 for size in attack_sizes
             ]
+            configs += [
+                {
+                    "path": f"llama2-7b-beavertail-att-sp--relearn-fft-as{size}-lr{{lr}}",
+                    "name": "Base",
+                    "color": "black",
+                    "attack_size": size,
+                }
+                for size in attack_sizes
+            ]
         else:
             configs.append(
                 {
