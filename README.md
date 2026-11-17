@@ -139,6 +139,18 @@ sbatch scripts/tamia/run_defence_attack_eval.sbatch \
 .venv/bin/python scripts/misc/plot_trajectory.py --attack-sizes
 ```
 
+### Base-model attacks
+
+Run the same attack-size and LR sweep on the undefended model:
+
+```sh
+sbatch scripts/tamia/run_base_attack_eval.sbatch config/eval.yaml " "
+```
+
+Outputs use `llama2-7b-beavertail-att-sp--relearn-fft-as<SAMPLES>-lr<LR>` under
+`artifacts/tamia/models/`, `artifacts/tamia/evals/`, and `artifacts/tamia/logs/`.
+The launcher follows the same resumption and attacked-model cleanup behavior.
+
 ### Attack gradient cosine similarity
 
 The diagnostic rerun keeps the same `sp/sp` formats, SD coefficients, and attack LRs.
