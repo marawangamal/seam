@@ -14,8 +14,11 @@ if __name__ == "__main__":
     parser.add_argument("--rootdir", default="artifacts/tamia/evals")
     parser.add_argument("--sd-coefficients", action="store_true")
     parser.add_argument("--attack-cosim", action="store_true")
+    parser.add_argument("--attack-sizes", action="store_true")
     parser.add_argument("--outpath")
     args = parser.parse_args()
+    if args.attack_sizes and (args.sd_coefficients or args.attack_cosim):
+        parser.error("Use --attack-sizes separately from the other comparison modes")
 
     if args.attack_cosim and not args.sd_coefficients:
         outpath = args.outpath or (
@@ -74,6 +77,8 @@ if __name__ == "__main__":
         if args.attack_cosim:
             comparison += "-cosim"
         sweep = "-beta-sweep" if args.sd_coefficients else ""
+        if args.attack_sizes:
+            sweep = "-attack-size-sweep"
         outpath = args.outpath or (
             "artifacts/figures/llama2-7b-beavertail--align-fft-seam"
             f"--{comparison}--lr-trajectory{sweep}.pdf"
@@ -118,13 +123,26 @@ if __name__ == "__main__":
                         "color": color,
                     }
                 )
-        configs.append(
-            {
-                "path": "llama2-7b-beavertail--data-overlapping--relearn-fft-author-codebase-lr{lr}-ms250",
-                "name": "Base (fine-tuned)",
-                "color": "black",
-            }
-        )
+        if args.attack_sizes:
+            attack_sizes = [10, 100, 200, 500]
+            configs = [
+                {
+                    "path": base
+                    + f"--def-sp--coeff-sd5.0-att-sp--relearn-fft-as{size}-lr{{lr}}",
+                    "name": r"SEAM (def=sp, att=sp), $\beta=5.0$",
+                    "color": colors[3],
+                    "attack_size": size,
+                }
+                for size in attack_sizes
+            ]
+        else:
+            configs.append(
+                {
+                    "path": "llama2-7b-beavertail--data-overlapping--relearn-fft-author-codebase-lr{lr}-ms250",
+                    "name": "Base (fine-tuned)",
+                    "color": "black",
+                }
+            )
         learning_rates = ["5e-5", "8e-5", "1e-4", "2e-4"]
         task_metrics = {
             "mmlu": "acc,none",
@@ -150,6 +168,7 @@ if __name__ == "__main__":
                     rows.append(
                         {
                             "Method": cfg["name"],
+                            "Attack size": cfg.get("attack_size"),
                             "LR": lr,
                             "Eval": evaluation,
                             "Score (%)": 100 * score,
@@ -160,12 +179,19 @@ if __name__ == "__main__":
         sns.set_theme(context="paper", style="ticks", font_scale=1.5)
         grid = sns.catplot(
             data=df,
-            x="LR",
+            x="Attack size" if args.attack_sizes else "LR",
             y="Score (%)",
             hue="Method",
-            col="Eval",
-            order=learning_rates,
-            col_order=["Harmfulness ↓", "Capability ↑"],
+            col="LR" if args.attack_sizes else "Eval",
+            row="Eval" if args.attack_sizes else None,
+            order=attack_sizes if args.attack_sizes else learning_rates,
+            col_order=(
+                learning_rates
+                if args.attack_sizes
+                else ["Harmfulness ↓", "Capability ↑"]
+            ),
+            row_order=["Harmfulness ↓", "Capability ↑"] if args.attack_sizes else None,
+            margin_titles=args.attack_sizes,
             kind="point",
             errorbar=None,
             palette={cfg["name"]: cfg["color"] for cfg in configs},
@@ -173,7 +199,13 @@ if __name__ == "__main__":
             aspect=1.4,
         )
         grid.set(ylim=(0, 100))
-        grid.set_axis_labels("Attack learning rate", "Score (%)")
-        grid.set_titles("{col_name}")
+        grid.set_axis_labels(
+            "Attack samples" if args.attack_sizes else "Attack learning rate",
+            "Score (%)",
+        )
+        if args.attack_sizes:
+            grid.set_titles(col_template="LR = {col_name}", row_template="{row_name}")
+        else:
+            grid.set_titles("{col_name}")
     os.makedirs(osp.dirname(outpath) or ".", exist_ok=True)
     grid.figure.savefig(outpath, bbox_inches="tight")

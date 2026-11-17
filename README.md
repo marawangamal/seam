@@ -136,6 +136,7 @@ sbatch scripts/tamia/run_defence_attack_eval.sbatch \
 
 # 2. Plot the results
 .venv/bin/python scripts/misc/plot_trajectory.py
+.venv/bin/python scripts/misc/plot_trajectory.py --attack-sizes
 ```
 
 ### Attack gradient cosine similarity
