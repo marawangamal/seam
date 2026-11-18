@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=0
 #SBATCH --time=03:00:00
-#SBATCH --array=0-2
+#SBATCH --array=0
 set -euo pipefail
 
 # ============================================
@@ -34,7 +34,7 @@ mkdir -p "$WANDB_DIR" artifacts/tamia/logs
 config=${1:?usage: run_defence_attack_eval_cosim.sbatch CONFIG [DEFENCE_SEPARATOR [ATTACK_SEPARATOR]]}
 defence_separator=${2:-$'\n'}
 attack_separator=${3:-$'\n'}
-defence_sd_coefficients=(0.1 1.0 5.0)
+defence_sd_coefficients=(0.01) # (0.1 1.0 5.0)
 attack_learning_rates=(5e-5 8e-5 1e-4 2e-4)
 defence_sd_coefficient=${defence_sd_coefficients[${SLURM_ARRAY_TASK_ID:?submit with sbatch}]}
 

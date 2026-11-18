@@ -153,7 +153,8 @@ The launcher follows the same resumption and attacked-model cleanup behavior.
 
 ### Attack gradient cosine similarity
 
-The diagnostic rerun keeps the same `sp/sp` formats, SD coefficients, and attack LRs.
+The diagnostic rerun defaults to `nl/nl` and the paper SD coefficient `0.01`,
+with the same four attack LRs and 1,000 attack samples (250 steps).
 It records the defense-style masked harmful/Alpaca gradient cosine on four fixed
 examples from each dataset at steps 0–250, along with gradient norms and probe losses.
 Probes use evaluation mode and preserve training gradients, optimizer updates, and RNG.
@@ -162,8 +163,9 @@ The first JSONL row records the probe indices, dataset fingerprints, and loss de
 
 ```sh
 sbatch scripts/tamia/run_defence_attack_eval_cosim.sbatch \
-  config/train-paper.yaml " " " "
+  config/train-paper.yaml
 
+# Plot the earlier sp/sp SD-coefficient sweeps:
 .venv/bin/python scripts/misc/plot_trajectory.py --attack-cosim
 .venv/bin/python scripts/misc/plot_trajectory.py --sd-coefficients --attack-cosim
 ```
