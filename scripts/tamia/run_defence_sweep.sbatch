@@ -15,6 +15,7 @@ set -euo pipefail
 # CLUSTER SPECIFIC CONFIG
 # ============================================
 export PATH="$HOME/.local/bin:$PATH"
+export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
 export HF_HOME="$SCRATCH/.cache/huggingface"
 defence_env="$PWD/.venv"
 attack_env="$SLURM_TMPDIR/.venv-attack-$SLURM_JOB_ID"

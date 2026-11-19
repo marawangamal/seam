@@ -51,6 +51,7 @@ if args[:2] == ['-m', 'src.train']:
     path = Path(arg('--output_dir')) / 'checkpoint-500'
     path.mkdir(parents=True)
 elif args[0] == 'train':
+    assert str(Path.cwd()) in os.environ['PYTHONPATH'].split(os.pathsep)
     assert args[1] == 'attack.yaml'
     assert Path(arg('--base-model')).is_dir()
     assert arg('--max-steps') == '5'
