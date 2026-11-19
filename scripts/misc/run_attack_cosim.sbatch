@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=seam-attack-batch-cosim
-#SBATCH --output=artifacts/tamia/logs/attack-batch-cosim-%A_%a.out
+#SBATCH --job-name=seam-attack-cosim
+#SBATCH --output=artifacts/tamia/logs/attack-cosim-%A_%a.out
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpubase_bynode_b1
@@ -34,6 +34,21 @@ export WANDB_DIR="$PWD/artifacts/tamia"
 mkdir -p "$WANDB_DIR" artifacts/tamia/logs
 
 config=${1:-config/eval.yaml}
+cosim_mode=${2:-batch}
+case "$cosim_mode" in
+    batch)
+        cosim_name=attack-batch-cosim
+        cosim_args=(--gradient_cosim_steps 1)
+        ;;
+    fixed)
+        probe_samples=${3:-100}
+        probe_interval=${4:-5}
+        cosim_name="attack-fixed-cosim-n$probe_samples-i$probe_interval"
+        cosim_args=(--gradient_cosim_mode fixed --gradient_cosim_steps "$probe_interval"
+            --gradient_cosim_samples "$probe_samples" --gradient_cosim_batch_size 4)
+        ;;
+    *) echo "Cosine mode must be batch or fixed" >&2; exit 1 ;;
+esac
 defence_sd_coefficients=(0.01 1.0)
 response_separators=($'\n' ' ')
 separator_names=(nl sp)
@@ -51,7 +66,7 @@ test -f "$defence_model_path/config.json"
 pids=()
 for gpu in 0 1 2 3; do
     attack_lr=${attack_learning_rates[gpu]}
-    attack_model_name="$defence_model_name--attack-batch-cosim-att-$separator_name--relearn-fft-lr$attack_lr-ms250"
+    attack_model_name="$defence_model_name--$cosim_name-att-$separator_name--relearn-fft-lr$attack_lr-ms250"
     if [[ -f "artifacts/tamia/evals/$attack_model_name/results.json" &&
           -s "artifacts/tamia/evals/$attack_model_name/gradient_cosim.jsonl" ]]; then
         echo "Skipping completed attack: $attack_model_name"
@@ -70,7 +85,7 @@ for gpu in 0 1 2 3; do
             --learning_rate "$attack_lr" \
             --attack_size 1000 \
             --max_steps 250 \
-            --gradient_cosim_steps 1 \
+            "${cosim_args[@]}" \
             --pre_utility False --post_utility False --skip_gpt True \
             --results_path "artifacts/tamia/evals/$attack_model_name/training-results.json" \
             --save_strategy epoch --save_only_model True --save_total_limit 1

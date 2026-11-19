@@ -152,25 +152,24 @@ The launcher follows the same resumption and attacked-model cleanup behavior.
 
 ### Attack gradient cosine similarity
 
-The diagnostic rerun defaults to `nl/nl` and the paper SD coefficient `0.01`,
-with the same four attack LRs and 1,000 attack samples (250 steps).
-It records the defense-style masked harmful/Alpaca gradient cosine on four fixed
-examples from each dataset at steps 0–250, along with gradient norms and probe losses.
-Probes use evaluation mode and preserve training gradients, optimizer updates, and RNG.
-These are diagnostic gradients; the attack still trains on its original full-sequence loss.
-The first JSONL row records the probe indices, dataset fingerprints, and loss definitions.
+The diagnostic launcher reuses the retained `nl/nl`, β=0.01 and `sp/sp`, β=1.0
+defenses. Each runs four LRs for 250 attack steps on 1,000 harmful examples using
+masked harmful CE. The `fixed` callback mode compares gradients on the first 100
+harmful and first 100 Alpaca examples at steps 0, 5, …, 250. Probes use evaluation
+mode, accumulate token-weighted mean gradients in batches of four, and preserve
+training gradients, optimizer updates, and RNG. The first JSONL row records the
+fixed indices, dataset fingerprints, batch size, and loss definitions.
 
 ```sh
-sbatch scripts/tamia/run_defence_attack_eval_cosim.sbatch \
-  config/train-paper.yaml
-
-# Plot the earlier sp/sp SD-coefficient sweeps:
-.venv/bin/python scripts/misc/plot_trajectory.py --attack-cosim
-.venv/bin/python scripts/misc/plot_trajectory.py --sd-coefficients --attack-cosim
+sbatch scripts/misc/run_attack_cosim.sbatch config/eval.yaml fixed 100 5
 ```
 
-Run names include `--attack-cosim` before the attack suffix. Each attack saves
-`results.json` and `gradient_cosim.jsonl` under its `artifacts/tamia/evals/` directory.
+Run names include `--attack-fixed-cosim-n100-i5` before the attack suffix.
+The `batch` mode instead logs current paired harmful/Alpaca training batches every
+step and retains the earlier `--attack-batch-cosim` names. Each attack saves
+`results.json`, `training-results.json`, and `gradient_cosim.jsonl` under its
+`artifacts/tamia/evals/` directory.
 W&B records `attack/cosine_similarity`, both gradient norms, and probe losses against
 `attack/step`; offline runs can be synced after the job. The original sweep outputs
-are kept separate. Model checkpoints are deleted after successful evaluation.
+are kept separate. Attacked checkpoints are deleted after successful evaluation;
+the retained defended checkpoints are kept.

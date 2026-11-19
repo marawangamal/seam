@@ -12,13 +12,24 @@ from transformers import TrainerCallback
 
 class GradientCosimCallback(TrainerCallback):
     def __init__(
-        self, harmful, refusal, benign, pad_token_id, path, interval=1, samples=4
+        self,
+        harmful,
+        refusal,
+        benign,
+        pad_token_id,
+        path,
+        interval=1,
+        samples=4,
+        batch_size=4,
     ):
         self.path = Path(path)
         self.interval = interval
+        self.batch_size = batch_size
         self.last_step = None
-        if interval < 1 or samples < 1:
-            raise ValueError("Cosine interval and probe size must be positive")
+        if interval < 1 or samples < 1 or batch_size < 1:
+            raise ValueError(
+                "Cosine interval, probe size, and batch size must be positive"
+            )
         if min(len(harmful), len(refusal), len(benign)) < samples:
             raise ValueError("Probe size exceeds the available examples")
         self.probe = {
@@ -28,6 +39,8 @@ class GradientCosimCallback(TrainerCallback):
             "harmful_loss": "SEAM attack CE masked by harmful/refusal token differences",
             "benign_loss": "Alpaca full-sequence CE",
             "model_mode": "eval",
+            "batch_size": batch_size,
+            "reduction": "token-weighted mean CE over the entire fixed probe set",
         }
         self.harmful, self.refusal, self.benign = [
             {
@@ -42,25 +55,54 @@ class GradientCosimCallback(TrainerCallback):
             batch["labels"][batch["labels"] == pad_token_id] = -100
 
     def _gradients(self, model, parameters, batch, device, mask=None):
-        batch = {key: value.to(device) for key, value in batch.items()}
-        logits = model(
-            input_ids=batch["input_ids"],
-            attention_mask=batch["attention_mask"],
-            use_cache=False,
-        ).logits
-        logits = logits[..., :-1, :].contiguous()
         labels = batch["labels"][..., 1:].contiguous()
         if mask is not None:
-            # Match SeamTrainer.masked_token_ce_loss, including both shifted masks.
-            mask = mask.to(device)
-            logits = logits * mask[..., :-1].unsqueeze(-1)
             labels = labels * mask[..., 1:]
             labels = labels.masked_fill(labels == 0, -100)
-        loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), labels.reshape(-1))
-        gradients = torch.autograd.grad(loss, parameters, allow_unused=True)
-        return loss.item(), [
-            grad.detach() if grad is not None else None for grad in gradients
-        ]
+        token_count = (labels != -100).sum().item()
+        if token_count == 0:
+            raise ValueError("Fixed probe set contains no supervised tokens")
+
+        # Accumulate the full probe gradient on the GPU in small batches.
+        # Restore training gradients afterwards; probes never reach the optimizer.
+        previous = [param.grad for param in parameters]
+        loss_value = 0.0
+        try:
+            for param in parameters:
+                param.grad = None
+            for start in range(0, len(labels), self.batch_size):
+                stop = start + self.batch_size
+                logits = (
+                    model(
+                        input_ids=batch["input_ids"][start:stop].to(device),
+                        attention_mask=batch["attention_mask"][start:stop].to(device),
+                        use_cache=False,
+                    )
+                    .logits[..., :-1, :]
+                    .contiguous()
+                )
+                if mask is not None:
+                    # Match the author's separate shifted logit and label masks.
+                    logits = logits * mask[start:stop, :-1].to(device).unsqueeze(-1)
+                loss = (
+                    F.cross_entropy(
+                        logits.reshape(-1, logits.size(-1)),
+                        labels[start:stop].to(device).reshape(-1),
+                        reduction="sum",
+                    )
+                    / token_count
+                )
+                loss.backward()
+                loss_value += loss.item()
+                del logits, loss
+            gradients = [
+                param.grad.detach().cpu() if param.grad is not None else None
+                for param in parameters
+            ]
+        finally:
+            for param, grad in zip(parameters, previous):
+                param.grad = grad
+        return loss_value, gradients
 
     def _record(self, args, state, model):
         if self.last_step == state.global_step:
@@ -79,25 +121,20 @@ class GradientCosimCallback(TrainerCallback):
                     harmful_loss, harmful_grad = self._gradients(
                         model, parameters, self.harmful, device, self.mask
                     )
-                    harmful_grad = [
-                        grad.cpu() if grad is not None else None
-                        for grad in harmful_grad
-                    ]
                     benign_loss, benign_grad = self._gradients(
                         model, parameters, self.benign, device
                     )
         finally:
             model.train(training)
 
-        # Reduce on the GPU, transferring the offloaded gradient one tensor at a time.
-        # This avoids both CPU full-model reductions and two full GPU gradient copies.
+        # Reduce on the GPU, transferring the offloaded gradients one tensor at a time.
         products = torch.zeros(3, device=device, dtype=torch.float32)
         for harmful, benign in zip(harmful_grad, benign_grad):
             if harmful is not None:
                 harmful = harmful.to(device).float()
                 products[1] += harmful.square().sum()
             if benign is not None:
-                benign = benign.float()
+                benign = benign.to(device).float()
                 products[2] += benign.square().sum()
             if harmful is not None and benign is not None:
                 products[0] += (harmful * benign).sum()

@@ -17,13 +17,14 @@ class DatasetReady(Exception):
 class EvalDatasetTests(unittest.TestCase):
     def test_requested_attack_size_reaches_trainer(self):
         with tempfile.TemporaryDirectory() as output:
-            for attack_mode, size, expected in [
-                (True, 10, 10),
-                (True, 100, 100),
-                (True, 200, 200),
-                (True, 500, 500),
-                (True, 1000, 1000),
-                (False, 10, 1000),
+            for attack_mode, size, expected, mode in [
+                (True, 10, 10, "batch"),
+                (True, 100, 100, "batch"),
+                (True, 200, 200, "batch"),
+                (True, 500, 500, "batch"),
+                (True, 1000, 1000, "batch"),
+                (False, 10, 1000, "batch"),
+                (True, 100, 100, "fixed"),
             ]:
                 with self.subTest(attack_mode=attack_mode, size=size):
                     harmful = Dataset.from_dict(
@@ -33,8 +34,9 @@ class EvalDatasetTests(unittest.TestCase):
                         {"input_ids": [[i] for i in range(1100)]}
                     )
                     test = Dataset.from_dict({"input_ids": [[i] for i in range(120)]})
-                    benign = harmful.select(range(expected))
-                    record_cosine = attack_mode and size == 10
+                    benign_size = 4 if mode == "fixed" else expected
+                    benign = harmful.select(range(benign_size))
+                    record_cosine = (attack_mode and size == 10) or mode == "fixed"
                     train_source = SimpleNamespace(
                         column_names=[], map=Mock(side_effect=[harmful, refusal])
                     )
@@ -52,16 +54,21 @@ class EvalDatasetTests(unittest.TestCase):
                             "pre_utility": False,
                             "attack_dataset": attack_mode,
                             "gradient_cosim_steps": int(record_cosine),
+                            "gradient_cosim_mode": mode,
+                            "gradient_cosim_samples": 4,
                             "results_path": str(output) + "/results.json",
                         },
                     }
-                    tokenizer = SimpleNamespace(eos_token="eos", padding_side="right")
+                    tokenizer = SimpleNamespace(
+                        eos_token="eos", pad_token_id=0, padding_side="right"
+                    )
                     with (
                         patch("sys.argv", ["eval.py", "--attack_size", str(size)]),
                         patch.object(
                             evaluation, "load_yaml_config", return_value=config
                         ),
                         patch.object(evaluation, "wandb"),
+                        patch("src.core.gradient_cosim.GradientCosimCallback") as probe,
                         patch.object(
                             evaluation, "construct_alpaca_dataset", return_value=benign
                         ) as alpaca,
@@ -99,10 +106,26 @@ class EvalDatasetTests(unittest.TestCase):
                         len(trainer.call_args.kwargs["align_dataset"]), expected
                     )
                     if record_cosine:
-                        alpaca.assert_called_once_with(tokenizer, retain_size=expected)
-                        self.assertIs(
-                            trainer.call_args.kwargs["benign_dataset"], benign
+                        alpaca.assert_called_once_with(
+                            tokenizer, retain_size=benign_size
                         )
+                        if mode == "fixed":
+                            self.assertIsNone(
+                                trainer.call_args.kwargs["benign_dataset"]
+                            )
+                            self.assertEqual(
+                                trainer.call_args.kwargs["gradient_cosim_steps"], 0
+                            )
+                            self.assertEqual(
+                                trainer.call_args.kwargs["callbacks"],
+                                [probe.return_value],
+                            )
+                            self.assertEqual(probe.call_args.kwargs["samples"], 4)
+                        else:
+                            self.assertIs(
+                                trainer.call_args.kwargs["benign_dataset"], benign
+                            )
+                            probe.assert_not_called()
                     else:
                         alpaca.assert_not_called()
 

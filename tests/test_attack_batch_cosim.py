@@ -12,8 +12,7 @@ from pathlib import Path
 class AttackBatchCosimTests(unittest.TestCase):
     def test_paired_defenses_four_parallel_lrs_and_retention(self):
         script = (
-            Path(__file__).resolve().parents[1]
-            / "scripts/misc/run_attack_batch_cosim.sbatch"
+            Path(__file__).resolve().parents[1] / "scripts/misc/run_attack_cosim.sbatch"
         )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -26,7 +25,8 @@ if Path(sys.argv[0]).name == 'uv':
     assert args == ['sync', '--frozen', '--only-group', 'attack']
     path = Path(os.environ['UV_PROJECT_ENVIRONMENT']) / 'bin'
     path.mkdir(parents=True, exist_ok=True)
-    (path / 'python').symlink_to(Path(__file__).resolve())
+    if not (path / 'python').exists():
+        (path / 'python').symlink_to(Path(__file__).resolve())
     raise SystemExit
 def arg(key): return args[args.index(key) + 1]
 with open('calls.jsonl', 'a') as handle:
@@ -35,7 +35,14 @@ if args[:2] == ['-m', 'src.eval']:
     assert Path(sys.argv[0]).parent.parent.name == '.venv'
     assert arg('--max_steps') == '250'
     assert arg('--attack_size') == '1000'
-    assert arg('--gradient_cosim_steps') == '1'
+    if '--gradient_cosim_mode' in args:
+        assert arg('--gradient_cosim_mode') == 'fixed'
+        assert arg('--gradient_cosim_steps') == '5'
+        assert arg('--gradient_cosim_samples') == '100'
+        assert arg('--gradient_cosim_batch_size') == '4'
+        assert 'attack-fixed-cosim-n100-i5' in arg('--output_dir')
+    else:
+        assert arg('--gradient_cosim_steps') == '1'
     assert arg('--pre_utility') == arg('--post_utility') == 'False'
     assert Path(arg('--model_name'), 'config.json').exists()
     checkpoint = Path(arg('--output_dir')) / 'checkpoint-250'
@@ -72,19 +79,20 @@ else:
                 checkpoint = root / "artifacts/tamia/models" / model / "checkpoint-500"
                 checkpoint.mkdir(parents=True)
                 (checkpoint / "config.json").write_text("{}")
-                result = subprocess.run(
-                    ["bash", str(script)],
-                    cwd=root,
-                    env=env
-                    | {
-                        "SLURM_ARRAY_TASK_ID": str(index),
-                        "SLURM_JOB_ID": str(index),
-                    },
-                    capture_output=True,
-                    text=True,
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertTrue((checkpoint / "config.json").exists())
+                for mode in ["batch", "fixed"]:
+                    result = subprocess.run(
+                        ["bash", str(script), "config/eval.yaml", mode],
+                        cwd=root,
+                        env=env
+                        | {
+                            "SLURM_ARRAY_TASK_ID": str(index),
+                            "SLURM_JOB_ID": str(index),
+                        },
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertTrue((checkpoint / "config.json").exists())
             calls = [
                 json.loads(line)
                 for line in (root / "calls.jsonl").read_text().splitlines()
@@ -93,9 +101,11 @@ else:
             evaluations = [
                 call for call in calls if call["args"][1] == "src.evaluation"
             ]
-            self.assertEqual(len(attacks), 8)
-            self.assertEqual(len(evaluations), 8)
-            self.assertEqual(sorted(call["gpu"] for call in attacks), list("00112233"))
+            self.assertEqual(len(attacks), 16)
+            self.assertEqual(len(evaluations), 16)
+            self.assertEqual(
+                sorted(call["gpu"] for call in attacks), list("0000111122223333")
+            )
             for call in attacks:
                 args = call["args"]
                 source = args[args.index("--model_name") + 1]
@@ -104,7 +114,7 @@ else:
                 output = args[args.index("--output_dir") + 1]
                 self.assertFalse((root / output).exists())
             self.assertEqual(
-                len(list(root.glob("artifacts/tamia/evals/*/results.json"))), 8
+                len(list(root.glob("artifacts/tamia/evals/*/results.json"))), 16
             )
 
 

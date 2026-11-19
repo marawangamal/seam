@@ -73,6 +73,78 @@ class GradientCosimTests(unittest.TestCase):
             self.path,
             interval=interval,
             samples=2,
+            batch_size=1,
+        )
+
+    def test_chunked_probe_matches_full_set_gradient_with_unequal_token_counts(self):
+        model = TinyLM().train()
+        rows = [
+            [1, 2, 3, 4, 0, 0],
+            [1, 2, 3, 0, 0, 0],
+            [1, 2, 6, 7, 8, 0],
+            [1, 2, 4, 5, 0, 0],
+            [1, 2, 8, 9, 10, 11],
+        ]
+        harmful = Dataset.from_dict(
+            {
+                "input_ids": rows,
+                "attention_mask": [[int(token != 0) for token in row] for row in rows],
+            }
+        ).with_format("torch")
+        refusal = Dataset.from_dict(
+            {
+                "input_ids": [[1, 2, 12, 0, 0, 0]] * 5,
+                "attention_mask": [[1, 1, 1, 0, 0, 0]] * 5,
+            }
+        ).with_format("torch")
+        callback = GradientCosimCallback(
+            harmful, refusal, harmful, 0, self.path, samples=5, batch_size=2
+        )
+        for parameter in model.parameters():
+            parameter.grad = torch.randn_like(parameter)
+        previous = [parameter.grad for parameter in model.parameters()]
+        with patch.object(model, "forward", wraps=model.forward) as forward:
+            callback.on_train_begin(
+                SimpleNamespace(bf16=False, fp16=False),
+                SimpleNamespace(global_step=0),
+                None,
+                model=model,
+            )
+        self.assertEqual(
+            [call.kwargs["input_ids"].shape[0] for call in forward.call_args_list],
+            [2, 2, 1, 2, 2, 1],
+        )
+        for parameter, grad in zip(model.parameters(), previous):
+            self.assertIs(parameter.grad, grad)
+        model.eval()
+        harmful_loss = SeamTrainer.masked_token_ce_loss(
+            None,
+            model(**callback.harmful).logits,
+            callback.harmful["labels"],
+            callback.mask.float(),
+        )
+        benign_loss = SeamTrainer.ce_loss(
+            None, model(**callback.benign).logits, callback.benign["labels"]
+        )
+        h = torch.cat(
+            [
+                grad.flatten().double()
+                for grad in torch.autograd.grad(harmful_loss, tuple(model.parameters()))
+            ]
+        )
+        b = torch.cat(
+            [
+                grad.flatten().double()
+                for grad in torch.autograd.grad(benign_loss, tuple(model.parameters()))
+            ]
+        )
+        row = json.loads(self.path.read_text())
+        self.assertAlmostEqual(row["harmful_probe_loss"], harmful_loss.item(), places=6)
+        self.assertAlmostEqual(row["benign_probe_loss"], benign_loss.item(), places=6)
+        self.assertAlmostEqual(
+            row["cosine_similarity"],
+            (h @ b / (h.norm() * b.norm() + 1e-8)).item(),
+            places=6,
         )
 
     def test_attack_loss_and_gradients_match_defense_masked_ce(self):
