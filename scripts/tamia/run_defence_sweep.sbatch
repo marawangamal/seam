@@ -16,7 +16,7 @@ set -euo pipefail
 # ============================================
 export PATH="$HOME/.local/bin:$PATH"
 export HF_HOME="$SCRATCH/.cache/huggingface"
-defence_env="$SLURM_TMPDIR/.venv-defence-$SLURM_JOB_ID"
+defence_env="$PWD/.venv"
 attack_env="$SLURM_TMPDIR/.venv-attack-$SLURM_JOB_ID"
 export UV_CACHE_DIR="$SCRATCH/.cache/uv"
 export UV_OFFLINE=1
@@ -34,7 +34,7 @@ export WANDB_MODE=offline
 # ============================================
 
 # Setup
-UV_PROJECT_ENVIRONMENT="$defence_env" uv sync --frozen --only-group defence
+# Keep the existing SEAM defense environment; create only the attack/eval environment.
 UV_PROJECT_ENVIRONMENT="$attack_env" uv sync --frozen --only-group attack
 export WANDB_DIR="$PWD/artifacts/tamia"
 mkdir -p "$WANDB_DIR" artifacts/tamia/logs
@@ -120,7 +120,7 @@ PYTHONHASHSEED=0 "$defence_env/bin/python" -m src.train \
     --save_total_limit 1
 
 # Defence evaluation before the attacks.
-"$defence_env/bin/python" -m src.evaluation \
+"$attack_env/bin/python" -m src.evaluation \
     --model "$defence_model_path" \
     --results-path "artifacts/tamia/evals/$defence_model_name/results-1000.json" \
     --utility-samples 1000
@@ -138,7 +138,7 @@ for max_steps in "${attack_max_steps[@]}"; do
                 --output-dir "artifacts/tamia/models/$attack_model_name" \
                 --learning-rate "$attack_lr" \
                 --max-steps "$max_steps"
-            "$defence_env/bin/python" -m src.evaluation \
+            "$attack_env/bin/python" -m src.evaluation \
                 --model "artifacts/tamia/models/$attack_model_name" \
                 --results-path "artifacts/tamia/evals/$attack_model_name/results-1000.json" \
                 --utility-samples 1000

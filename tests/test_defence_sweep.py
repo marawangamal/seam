@@ -25,7 +25,7 @@ args = sys.argv[1:]
 if Path(sys.argv[0]).name == 'uv':
     environment = Path(os.environ['UV_PROJECT_ENVIRONMENT'])
     group = args[-1]
-    assert group in ['defence', 'attack']
+    assert group == 'attack'
     assert args == ['sync', '--frozen', '--only-group', group]
     assert environment == Path(os.environ['SLURM_TMPDIR']) / ('.venv-' + group + '-' + os.environ['SLURM_JOB_ID'])
     assert os.environ['UV_OFFLINE'] == '1'
@@ -35,8 +35,11 @@ if Path(sys.argv[0]).name == 'uv':
         if not executable.exists():
             executable.symlink_to(Path(__file__).resolve())
     raise SystemExit
-group = 'attack' if args[0] == 'train' else 'defence'
-assert Path(sys.argv[0]).parent.parent.name == '.venv-' + group + '-' + os.environ['SLURM_JOB_ID']
+environment_name = Path(sys.argv[0]).parent.parent.name
+if args[0] == '-c' or args[:2] == ['-m', 'src.train']:
+    assert environment_name == '.venv'
+else:
+    assert environment_name == '.venv-attack-' + os.environ['SLURM_JOB_ID']
 if args[0] == '-c':
     print('sp')
     raise SystemExit
