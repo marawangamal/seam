@@ -108,13 +108,14 @@ url={https://openreview.net/forum?id=ERNpUGr8M5}
 
 ## Reproducing figure 1
 
-The launcher sweeps `defence_sd_coefficients`, one Slurm array task per coefficient.
-Each task trains one defence, then loops over `attack_sizes=(10 100 200 500)` with
-four attack LRs in parallel per size. Attack names end in `--relearn-fft-as<SAMPLES>-lr<LR>`.
-Completed array tasks are skipped when all size/LR evaluation JSONs exist;
-otherwise, that task's defence and configured attack outputs are regenerated.
-Each attacked model is deleted after its evaluation succeeds; the defended model
-is deleted after all sizes and LRs succeed. Evaluation JSONs and logs are kept.
+The launcher trains one SEAM defence, then runs Axolotl attacks for
+`attack_max_steps=(5 10 50 100)`, with four LRs in parallel per training length.
+The attack YAML selects the response separator. Optional final arguments select
+the defence's α and β (defaults: 1.0 and 0.01). Completed evaluations are skipped;
+trained models are reused after evaluation failures. Each attacked model is
+deleted after evaluation, and the defence after all attacks succeed. Full-split
+evaluations use `results.json`; existing `results-1000.json` files are preserved.
+Attack logs use `--full-eval.log` to keep them separate from the subset sweep logs.
 
 ```sh
 # 0. Download data and models on login node
@@ -123,20 +124,18 @@ is deleted after all sizes and LRs succeed. Evaluation JSONs and logs are kept.
 # 1. Train defended model, then train and evaluate four parallel attacks
 sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
-  $'\n' " "
+  config/llama2-7b--beavertails--align-fft-repnoise--attack-fft.yml \
+  $'\n'
 ```
 
 ### Space-formatted defense and attack
 
 ```sh
-# 1. Train and evaluate with a space after Answer: for both stages
+# Train the selected defence (α=5.0, β=1.0), then attack with sp/sp
 sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
-  " " " "
-
-# 2. Plot the results
-.venv/bin/python scripts/misc/plot_trajectory.py
-.venv/bin/python scripts/misc/plot_trajectory.py --attack-sizes
+  config/llama2-7b--beavertails--align-fft-repnoise--attack-fft.yml \
+  " " 5.0 1.0
 ```
 
 ### Base-model attacks
