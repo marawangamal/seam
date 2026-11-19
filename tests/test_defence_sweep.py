@@ -22,6 +22,21 @@ class DefenceSweepTest(unittest.TestCase):
             fake.write_text(f"#!{sys.executable}\n" """import json, os, sys
 from pathlib import Path
 args = sys.argv[1:]
+if Path(sys.argv[0]).name == 'uv':
+    environment = Path(os.environ['UV_PROJECT_ENVIRONMENT'])
+    group = args[-1]
+    assert group in ['defence', 'attack']
+    assert args == ['sync', '--frozen', '--only-group', group]
+    assert environment == Path(os.environ['SLURM_TMPDIR']) / ('.venv-' + group + '-' + os.environ['SLURM_JOB_ID'])
+    assert os.environ['UV_OFFLINE'] == '1'
+    (environment / 'bin').mkdir(parents=True, exist_ok=True)
+    for name in ['python', 'axolotl']:
+        executable = environment / 'bin' / name
+        if not executable.exists():
+            executable.symlink_to(Path(__file__).resolve())
+    raise SystemExit
+group = 'attack' if args[0] == 'train' else 'defence'
+assert Path(sys.argv[0]).parent.parent.name == '.venv-' + group + '-' + os.environ['SLURM_JOB_ID']
 if args[0] == '-c':
     print('sp')
     raise SystemExit
@@ -47,11 +62,16 @@ else:
     path.write_text('{}')
 """)
             fake.chmod(0o755)
-            for name in ["python", "axolotl"]:
+            for name in ["python", "axolotl", "uv"]:
                 (root / ".venv/bin" / name).symlink_to(fake)
+            shell_setup = root / "shell_setup.sh"
+            shell_setup.write_text(f'uv() {{ "{root / ".venv/bin/uv"}" "$@"; }}\n')
             env = os.environ | {
                 "PATH": str(root / ".venv/bin") + os.pathsep + os.environ["PATH"],
                 "SCRATCH": directory,
+                "SLURM_TMPDIR": directory,
+                "SLURM_JOB_ID": "123",
+                "BASH_ENV": str(shell_setup),
             }
             pairs = itertools.product(
                 ["0.1", "1.0", "5.0"], ["0.01", "0.1", "1.0", "5.0"]

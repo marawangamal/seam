@@ -14,27 +14,35 @@ set -euo pipefail
 # ============================================
 # CLUSTER SPECIFIC CONFIG
 # ============================================
+export PATH="$HOME/.local/bin:$PATH"
 export HF_HOME="$SCRATCH/.cache/huggingface"
+defence_env="$SLURM_TMPDIR/.venv-defence-$SLURM_JOB_ID"
+attack_env="$SLURM_TMPDIR/.venv-attack-$SLURM_JOB_ID"
+export UV_CACHE_DIR="$SCRATCH/.cache/uv"
+export UV_OFFLINE=1
+export UV_LINK_MODE=copy
 export HF_HUB_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 export HF_EVALUATE_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
+export AXOLOTL_DO_NOT_TRACK=1
 export WANDB_MODE=offline
-source .venv/bin/activate
 
 # ============================================
 # APPLICATION SPECIFIC CONFIG
 # ============================================
 
 # Setup
+UV_PROJECT_ENVIRONMENT="$defence_env" uv sync --frozen --only-group defence
+UV_PROJECT_ENVIRONMENT="$attack_env" uv sync --frozen --only-group attack
 export WANDB_DIR="$PWD/artifacts/tamia"
 mkdir -p "$WANDB_DIR" artifacts/tamia/logs
 
 # Inputs
 defence_config=${1:?usage: run_defence_sweep.sbatch DEFENCE_CONFIG ATTACK_CONFIG [DEFENCE_SEPARATOR]}
 attack_config=${2:?missing attack config}
-defence_separator=${3:-$'\n'}
+defence_separator=${3:-$' '}
 
 # Inter-job sweep
 DEFENCE_UP_COEFFS=(0.1 1.0 5.0) # Utility preservation weight (default: 1.0)
@@ -54,7 +62,7 @@ case "$defence_separator" in
     ' ') defence_separator_abbrv=sp ;;
     *) echo "Defence separator must be a newline or a space" >&2; exit 1 ;;
 esac
-attack_separator_abbrv=$(python -c '
+attack_separator_abbrv=$("$defence_env/bin/python" -c '
 import sys
 import yaml
 with open(sys.argv[1]) as handle:
@@ -102,7 +110,7 @@ done
 
 # Defence.
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-PYTHONHASHSEED=0 python -m src.train \
+PYTHONHASHSEED=0 "$defence_env/bin/python" -m src.train \
     --config "$defence_config" \
     --output_dir "artifacts/tamia/models/$defence_model_name" \
     --wandb_run_name "$defence_model_name" \
@@ -112,7 +120,7 @@ PYTHONHASHSEED=0 python -m src.train \
     --save_total_limit 1
 
 # Defence evaluation before the attacks.
-python -m src.evaluation \
+"$defence_env/bin/python" -m src.evaluation \
     --model "$defence_model_path" \
     --results-path "artifacts/tamia/evals/$defence_model_name/results-1000.json" \
     --utility-samples 1000
@@ -125,12 +133,12 @@ for max_steps in "${attack_max_steps[@]}"; do
         attack_model_name="$defence_model_name--relearn-fft-att-$attack_separator_abbrv-lr$attack_lr-ms$max_steps"
         (
             export CUDA_VISIBLE_DEVICES=$gpu
-            axolotl train "$attack_config" --launcher python \
+            "$attack_env/bin/axolotl" train "$attack_config" --launcher python \
                 --base-model "$defence_model_path" \
                 --output-dir "artifacts/tamia/models/$attack_model_name" \
                 --learning-rate "$attack_lr" \
                 --max-steps "$max_steps"
-            python -m src.evaluation \
+            "$defence_env/bin/python" -m src.evaluation \
                 --model "artifacts/tamia/models/$attack_model_name" \
                 --results-path "artifacts/tamia/evals/$attack_model_name/results-1000.json" \
                 --utility-samples 1000
