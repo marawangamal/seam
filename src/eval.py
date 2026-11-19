@@ -7,8 +7,9 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import wandb
 from peft import LoraConfig, get_peft_model, TaskType
-from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 
+from src.core.attack_trainer import MaskedAttackTrainer
 from src.data_processing._datasets import construct_alpaca_dataset, construct_beavertails_dataset
 from src.utils.config import load_yaml_config, MyParser
 from src.utils.metrics import eval_harmfulness, eval_harmfulness_gpt, eval_utility
@@ -42,8 +43,7 @@ class EvalArguments:
     skip_gpt: bool = field(default=False, metadata={"help": "Skip GPT harmfulness judging"})
     results_path: Optional[str] = field(default=None, metadata={"help": "Write evaluation results to this JSON path"})
     lora_attack: bool = field(default=False, metadata={"help": "Whether to use LoRA"})
-    gradient_cosim_steps: int = field(default=0, metadata={"help": "Attack steps between gradient probes; 0 disables recording"})
-    gradient_cosim_samples: int = field(default=4, metadata={"help": "Fixed harmful and Alpaca examples per gradient probe"})
+    gradient_cosim_steps: int = field(default=0, metadata={"help": "Attack steps between current-batch gradient measurements; 0 disables recording"})
 
 
 def main():
@@ -87,26 +87,23 @@ def main():
         harmful_response_separator=eval_args.harmful_response_separator,
     )
 
-    callbacks = []
+    benign_dataset = None
     if eval_args.gradient_cosim_steps:
-        from src.core.gradient_cosim import GradientCosimCallback
-
         if not eval_args.attack or not eval_args.results_path:
-            raise ValueError("Gradient probes require an attack and a local results_path")
+            raise ValueError("Gradient logging requires an attack and a local results_path")
         benign_dataset = construct_alpaca_dataset(
-            tokenizer, retain_size=eval_args.gradient_cosim_samples
+            tokenizer, retain_size=len(harmful_dataset)
         )
-        callback = GradientCosimCallback(
-            harmful_dataset, harmless_dataset, benign_dataset, tokenizer.pad_token_id,
-            Path(eval_args.results_path).with_name("gradient_cosim.jsonl"),
-            interval=eval_args.gradient_cosim_steps,
-            samples=eval_args.gradient_cosim_samples,
-        )
-        callbacks.append(callback)
         results["gradient_cosim"] = {
             "path": "gradient_cosim.jsonl",
-            "interval": callback.interval,
-            "probe": callback.probe,
+            "interval": eval_args.gradient_cosim_steps,
+            "sampling": "current harmful batch and paired Alpaca batch",
+            "harmful_fingerprint": harmful_dataset._fingerprint,
+            "benign_fingerprint": benign_dataset._fingerprint,
+            "harmful_loss": "SEAM masked harmful/refusal token-difference CE",
+            "benign_loss": "Alpaca full-sequence CE",
+            "model_mode": "train",
+            "timing": "before optimizer update; one record per measured microbatch",
         }
 
     if eval_args.pre_utility:
@@ -123,6 +120,7 @@ def main():
             wandb.log({"Pre utility score": utility_score})
 
     if eval_args.attack:
+        results["attack_loss"] = "SEAM masked harmful/refusal token-difference CE"
         if eval_args.lora_attack:
             print("Using LoRA attack")
             config = LoraConfig(
@@ -130,27 +128,25 @@ def main():
                 task_type=TaskType.CAUSAL_LM,
             )
             model = get_peft_model(model, config)
-            trainer = Trainer(
+        trainer = MaskedAttackTrainer(
             model=model,
             args=training_args,
             train_dataset=harmful_dataset,
+            align_dataset=harmless_dataset,
+            benign_dataset=benign_dataset,
             tokenizer=tokenizer,
-            callbacks=callbacks,
-            )
-            trainer.train()
+            gradient_cosim_steps=eval_args.gradient_cosim_steps,
+            gradient_cosim_path=(
+                Path(eval_args.results_path).with_name("gradient_cosim.jsonl")
+                if eval_args.gradient_cosim_steps else None
+            ),
+        )
+        trainer.train()
+        if eval_args.lora_attack:
             model = model.merge_and_unload()
-        else:
-            trainer = Trainer(
-            model=model,
-            args=training_args,
-            train_dataset=harmful_dataset,
-            tokenizer=tokenizer,
-            callbacks=callbacks,
-            )
-            trainer.train()
 
-    if callbacks:
-        results["gradient_cosim"]["last_step"] = callbacks[0].last_step
+        if eval_args.gradient_cosim_steps:
+            results["gradient_cosim"]["last_step"] = trainer.last_cosim_step
 
     # evaluate harmfulness and utility
     test_dataloader = torch.utils.data.DataLoader(

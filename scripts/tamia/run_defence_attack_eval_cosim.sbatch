@@ -49,7 +49,7 @@ case "$attack_separator" in
     *) echo "Attack separator must be a newline or a space" >&2; exit 1 ;;
 esac
 
-defence_model_name="llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-$defence_separator_abbrv--coeff-sd$defence_sd_coefficient--attack-cosim"
+defence_model_name="llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-$defence_separator_abbrv--coeff-sd$defence_sd_coefficient--attack-batch-cosim"
 
 # ================================================================================
 # Resumption handling. Skip iff every attack config for this defence exists
@@ -99,7 +99,6 @@ for gpu in 0 1 2 3; do
             --harmful_response_separator "$attack_separator" \
             --output_dir "artifacts/tamia/models/$attack_model_name" \
             --gradient_cosim_steps 1 \
-            --gradient_cosim_samples 4 \
             --pre_utility False \
             --utility_tasks mmlu truthfulqa_mc1 arc_easy hellaswag \
             --skip_gpt True \

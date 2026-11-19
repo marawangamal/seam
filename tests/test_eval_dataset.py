@@ -33,6 +33,8 @@ class EvalDatasetTests(unittest.TestCase):
                         {"input_ids": [[i] for i in range(1100)]}
                     )
                     test = Dataset.from_dict({"input_ids": [[i] for i in range(120)]})
+                    benign = harmful.select(range(expected))
+                    record_cosine = attack_mode and size == 10
                     train_source = SimpleNamespace(
                         column_names=[], map=Mock(side_effect=[harmful, refusal])
                     )
@@ -49,6 +51,8 @@ class EvalDatasetTests(unittest.TestCase):
                             "model_name": "unused",
                             "pre_utility": False,
                             "attack_dataset": attack_mode,
+                            "gradient_cosim_steps": int(record_cosine),
+                            "results_path": str(output) + "/results.json",
                         },
                     }
                     tokenizer = SimpleNamespace(eos_token="eos", padding_side="right")
@@ -58,6 +62,9 @@ class EvalDatasetTests(unittest.TestCase):
                             evaluation, "load_yaml_config", return_value=config
                         ),
                         patch.object(evaluation, "wandb"),
+                        patch.object(
+                            evaluation, "construct_alpaca_dataset", return_value=benign
+                        ) as alpaca,
                         patch.object(
                             evaluation.AutoTokenizer,
                             "from_pretrained",
@@ -79,7 +86,7 @@ class EvalDatasetTests(unittest.TestCase):
                             return_value=test_source,
                         ),
                         patch.object(
-                            evaluation, "Trainer", side_effect=DatasetReady
+                            evaluation, "MaskedAttackTrainer", side_effect=DatasetReady
                         ) as trainer,
                         self.assertRaises(DatasetReady),
                     ):
@@ -88,6 +95,16 @@ class EvalDatasetTests(unittest.TestCase):
                     self.assertEqual(len(selected), expected)
                     self.assertEqual(selected[0]["input_ids"].item(), 0)
                     self.assertEqual(selected[-1]["input_ids"].item(), expected - 1)
+                    self.assertEqual(
+                        len(trainer.call_args.kwargs["align_dataset"]), expected
+                    )
+                    if record_cosine:
+                        alpaca.assert_called_once_with(tokenizer, retain_size=expected)
+                        self.assertIs(
+                            trainer.call_args.kwargs["benign_dataset"], benign
+                        )
+                    else:
+                        alpaca.assert_not_called()
 
 
 if __name__ == "__main__":
