@@ -15,10 +15,18 @@ if __name__ == "__main__":
     parser.add_argument("--sd-coefficients", action="store_true")
     parser.add_argument("--attack-cosim", action="store_true")
     parser.add_argument("--attack-sizes", action="store_true")
+    parser.add_argument("--attack-max-steps", nargs="+", type=int)
     parser.add_argument("--outpath")
     args = parser.parse_args()
     if args.attack_sizes and (args.sd_coefficients or args.attack_cosim):
         parser.error("Use --attack-sizes separately from the other comparison modes")
+    if args.attack_max_steps and (
+        args.attack_sizes or args.sd_coefficients or args.attack_cosim
+    ):
+        parser.error(
+            "Use --attack-max-steps separately from the other comparison modes"
+        )
+    attack_sweep = bool(args.attack_sizes or args.attack_max_steps)
 
     if args.attack_cosim and not args.sd_coefficients:
         outpath = args.outpath or (
@@ -83,6 +91,11 @@ if __name__ == "__main__":
             "artifacts/figures/llama2-7b-beavertail--align-fft-seam"
             f"--{comparison}--lr-trajectory{sweep}.pdf"
         )
+        if args.attack_max_steps:
+            outpath = args.outpath or (
+                "artifacts/figures/llama2-7b-beavertail--seam"
+                "--attack-steps--lr-trajectory.pdf"
+            )
         base = "llama2-7b-beavertail--align-fft-seam--upstream-paper-config"
         colors = sns.color_palette("colorblind", 4)
         configs = [
@@ -144,6 +157,18 @@ if __name__ == "__main__":
                 }
                 for size in attack_sizes
             ]
+        elif args.attack_max_steps:
+            configs = [
+                {
+                    "path": "llama2-7b-beavertail--align-fft-seam"
+                    "--def-sp--coeff-sd1.0--coeff-up5.0"
+                    "--relearn-fft-att-sp-lr{lr}-ms" + str(steps),
+                    "name": r"SEAM (def=sp, att=sp), $\alpha=5.0,\ \beta=1.0$",
+                    "color": colors[1],
+                    "attack_steps": steps,
+                }
+                for steps in args.attack_max_steps
+            ]
         else:
             configs.append(
                 {
@@ -178,6 +203,7 @@ if __name__ == "__main__":
                         {
                             "Method": cfg["name"],
                             "Attack size": cfg.get("attack_size"),
+                            "Attack steps": cfg.get("attack_steps"),
                             "LR": lr,
                             "Eval": evaluation,
                             "Score (%)": 100 * score,
@@ -188,31 +214,48 @@ if __name__ == "__main__":
         sns.set_theme(context="paper", style="ticks", font_scale=1.5)
         grid = sns.catplot(
             data=df,
-            x="Attack size" if args.attack_sizes else "LR",
+            x=(
+                "Attack steps"
+                if args.attack_max_steps
+                else "Attack size" if args.attack_sizes else "LR"
+            ),
             y="Score (%)",
             hue="Method",
-            col="LR" if args.attack_sizes else "Eval",
-            row="Eval" if args.attack_sizes else None,
-            order=attack_sizes if args.attack_sizes else learning_rates,
-            col_order=(
-                learning_rates
-                if args.attack_sizes
-                else ["Harmfulness ↓", "Capability ↑"]
+            col="LR" if attack_sweep else "Eval",
+            row="Eval" if attack_sweep else None,
+            order=(
+                args.attack_max_steps
+                if args.attack_max_steps
+                else attack_sizes if args.attack_sizes else learning_rates
             ),
-            row_order=["Harmfulness ↓", "Capability ↑"] if args.attack_sizes else None,
+            col_order=(
+                learning_rates if attack_sweep else ["Harmfulness ↓", "Capability ↑"]
+            ),
+            row_order=["Harmfulness ↓", "Capability ↑"] if attack_sweep else None,
             margin_titles=args.attack_sizes,
             kind="point",
             errorbar=None,
             palette={cfg["name"]: cfg["color"] for cfg in configs},
+            legend_out=not bool(args.attack_max_steps),
             height=3,
-            aspect=1.4,
+            aspect=1 if args.attack_max_steps else 1.4,
         )
         grid.set(ylim=(0, 100))
         grid.set_axis_labels(
-            "Attack samples" if args.attack_sizes else "Attack learning rate",
+            (
+                "Attack steps"
+                if args.attack_max_steps
+                else "Attack samples" if args.attack_sizes else "Attack learning rate"
+            ),
             "Score (%)",
         )
-        if args.attack_sizes:
+        if args.attack_max_steps:
+            grid.set_titles("{row_name} | LR={col_name}")
+            sns.move_legend(
+                grid, "lower center", bbox_to_anchor=(0.5, 0), frameon=False
+            )
+            grid.figure.subplots_adjust(bottom=0.24, hspace=0.4, wspace=0.3)
+        elif args.attack_sizes:
             grid.set_titles(col_template="LR = {col_name}", row_template="{row_name}")
         else:
             grid.set_titles("{col_name}")

@@ -136,6 +136,8 @@ sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
   config/llama2-7b--beavertails--align-fft-repnoise--attack-fft.yml \
   " " 5.0 1.0
+
+python scripts/misc/plot_trajectory.py --attack-max-steps 5 10 50 100
 ```
 
 ### Base-model attacks
