@@ -108,12 +108,14 @@ url={https://openreview.net/forum?id=ERNpUGr8M5}
 
 ## Reproducing figure 1
 
-The launcher sweeps `defence_sd_coefficients`, one Slurm array task per value,
-with four attack LRs in parallel. Sweep artifact names include `--coeff-sd<VALUE>`.
-Completed array tasks are skipped when all four evaluation JSONs exist; otherwise,
-that task's defence and attack outputs are deleted and regenerated.
-Each attacked model is deleted after its evaluation succeeds; the defended model
-is deleted after all four succeed. Evaluation JSONs and logs are kept.
+The launcher trains one SEAM defence, then runs Axolotl attacks for
+`attack_max_steps=(5 10 50 100)`, with four LRs in parallel per training length.
+The attack YAML selects the response separator. Optional final arguments select
+the defence's α and β (defaults: 1.0 and 0.01). Completed evaluations are skipped;
+trained models are reused after evaluation failures. Each attacked model is
+deleted after evaluation, and the defence after all attacks succeed. Full-split
+evaluations use `results.json`; existing `results-1000.json` files are preserved.
+Attack logs use `--full-eval.log` to keep them separate from the subset sweep logs.
 
 ```sh
 # 0. Download data and models on login node
@@ -122,17 +124,54 @@ is deleted after all four succeed. Evaluation JSONs and logs are kept.
 # 1. Train defended model, then train and evaluate four parallel attacks
 sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
-  $'\n' " "
+  config/llama2-7b--beavertails--align-fft-repnoise--attack-fft.yml \
+  $'\n'
 ```
 
 ### Space-formatted defense and attack
 
 ```sh
-# 1. Train and evaluate with a space after Answer: for both stages
+# Train the selected defence (α=5.0, β=1.0), then attack with sp/sp
 sbatch scripts/tamia/run_defence_attack_eval.sbatch \
   config/train-paper.yaml \
-  " " " "
+  config/llama2-7b--beavertails--align-fft-repnoise--attack-fft.yml \
+  " " 5.0 1.0
 
-# 2. Plot the results
-.venv/bin/python scripts/plot_trajectory.py
+python scripts/misc/plot_trajectory.py --attack-max-steps 5 10 50 100
 ```
+
+### Base-model attacks
+
+Run the same attack-size and LR sweep on the undefended model:
+
+```sh
+sbatch scripts/tamia/run_base_attack_eval.sbatch config/eval.yaml " "
+```
+
+Outputs use `llama2-7b-beavertail-att-sp--relearn-fft-as<SAMPLES>-lr<LR>` under
+`artifacts/tamia/models/`, `artifacts/tamia/evals/`, and `artifacts/tamia/logs/`.
+The launcher follows the same resumption and attacked-model cleanup behavior.
+
+### Attack gradient cosine similarity
+
+The diagnostic launcher reuses the retained `nl/nl`, β=0.01 and `sp/sp`, β=1.0
+defenses. Each runs four LRs for 250 attack steps on 1,000 harmful examples using
+masked harmful CE. The `fixed` callback mode compares gradients on the first 100
+harmful and first 100 Alpaca examples at steps 0, 5, …, 250. Probes use evaluation
+mode, accumulate token-weighted mean gradients in batches of four, and preserve
+training gradients, optimizer updates, and RNG. The first JSONL row records the
+fixed indices, dataset fingerprints, batch size, and loss definitions.
+
+```sh
+sbatch scripts/misc/run_attack_cosim.sbatch config/eval.yaml fixed 100 5
+```
+
+Run names include `--attack-fixed-cosim-n100-i5` before the attack suffix.
+The `batch` mode instead logs current paired harmful/Alpaca training batches every
+step and retains the earlier `--attack-batch-cosim` names. Each attack saves
+`results.json`, `training-results.json`, and `gradient_cosim.jsonl` under its
+`artifacts/tamia/evals/` directory.
+W&B records `attack/cosine_similarity`, both gradient norms, and probe losses against
+`attack/step`; offline runs can be synced after the job. The original sweep outputs
+are kept separate. Attacked checkpoints are deleted after successful evaluation;
+the retained defended checkpoints are kept.

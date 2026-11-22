@@ -1,0 +1,17 @@
+{
+  "model_name": "artifacts/tamia/models/llama2-7b-beavertail--align-fft-seam--upstream-paper-config--def-sp--coeff-sd1.0-rerun/checkpoint-500",
+  "gradient_cosim": {
+    "path": "gradient_cosim.jsonl",
+    "interval": 1,
+    "sampling": "current harmful batch and paired Alpaca batch",
+    "harmful_fingerprint": "9968206a93fa255f",
+    "benign_fingerprint": "cc2640d2769b8ec8",
+    "harmful_loss": "SEAM masked harmful/refusal token-difference CE",
+    "benign_loss": "Alpaca full-sequence CE",
+    "model_mode": "train",
+    "timing": "before optimizer update; one record per measured microbatch",
+    "last_step": 249
+  },
+  "attack_loss": "SEAM masked harmful/refusal token-difference CE",
+  "harmfulness": 0.7072064043954015
+}
