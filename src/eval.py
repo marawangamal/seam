@@ -22,6 +22,10 @@ class EvalArguments:
     attack: bool = field(default=True, metadata={"help": "Whether to HFA"})
     attack_dataset: bool = field(default=True, metadata={"help": "Whether to load attack dataset"})
     attack_size: int = field(default=1000, metadata={"help": "Number of examples for attack evaluation"})
+    harmful_response_separator: str = field(
+        default="\n",
+        metadata={"help": "Separator between Answer: and harmful responses"},
+    )
     utility_tasks: List[str] = field(default_factory=lambda: ["mmlu"], 
                                     metadata={"help": "List of utility tasks to evaluate"})
     utility_batch_size: int = field(default=24, metadata={"help": "Batch size for utility task evaluation"})
@@ -69,7 +73,8 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(eval_args.model_name, torch_dtype=torch.bfloat16)
     model.to("cuda:0")
     harmful_dataset, harmless_dataset, test_dataset = construct_beavertails_dataset(
-            tokenizer, attack_size=eval_args.attack_size
+            tokenizer, attack_size=eval_args.attack_size,
+            harmful_response_separator=eval_args.harmful_response_separator,
                 )
 
     if eval_args.pre_utility:
