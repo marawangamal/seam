@@ -740,6 +740,7 @@ class SeamTrainer(Trainer):
         # Gradient of loss_ul
         with self.compute_loss_context_manager():
             loss_harmful = self.compute_loss(model, inputs, split = "harmful", num_items_in_batch=num_items_in_batch)
+        loss_ul = loss_harmful.detach().mean().item()
         clear_memory()
         loss_harmful = backward_hf(loss_harmful)
         harmful_grad  = self.get_grad(model = model, device = self.grad_device1,zero_grad=True)
@@ -747,6 +748,7 @@ class SeamTrainer(Trainer):
         # Gradient of loss_up
         with self.compute_loss_context_manager():
             loss_harmless = self.compute_loss(model, inputs, split = "harmless", num_items_in_batch=num_items_in_batch)
+        loss_up = loss_harmless.detach().mean().item()
         clear_memory()
         loss_harmless = backward_hf(loss_harmless)
         harmless_grad = self.get_grad(model = model, device = self.grad_device1,zero_grad=True)
@@ -786,7 +788,11 @@ class SeamTrainer(Trainer):
         harmless_grad_norm = self.compute_l2_norm(harmless_grad)
         wandb.log({"Harmless Gradient Norm": harmless_grad_norm.item()})
         cosine_similarity = self.compute_cosine_similarity(harmful_grad, harmless_grad)
-        wandb.log({"Cosine Similarity": cosine_similarity.item()})
+        wandb.log({
+            "Cosine Similarity": cosine_similarity.item(),
+            "loss_ul": loss_ul,
+            "loss_up": loss_up,
+        })
 
         # Harmful fine-tuning gradient after parameter pertubation
         with self.temporary_parameter_update(model, harmless_grad, harmful_grad, harmless_grad_norm, harmful_grad_norm, cosine_similarity, self.seam_args.epsilon):
